@@ -125,7 +125,10 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
             onRefresh: _refreshJournal,
             child: Column(
                 children: [
-                  _buildDateSelector(),
+                  SafeArea(
+                    bottom: false,
+                    child: _buildDateSelector(),
+                  ),
                   Expanded(
                     child: PageView.builder(
                         controller: _pageController,

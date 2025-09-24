@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -72,8 +74,8 @@ class NotificationService {
     
     final InitializationSettings initializationSettings =
         InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
+      android: Platform.isAndroid ? initializationSettingsAndroid : null,
+      iOS: Platform.isIOS ? initializationSettingsIOS : null,
     );
     
     // Handle notification responses including action buttons

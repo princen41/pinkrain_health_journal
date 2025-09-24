@@ -21,7 +21,7 @@ dependencies:
   hive_flutter: ^1.1.0
   path_provider: ^2.1.5
   fl_chart: ^0.65.0
-  tflite_flutter: ^0.11.0
+  tflite_flutter: ^0.11.0 
   pdf: ^3.10.7
   share_plus: ^11.0.0
   flutter_local_notifications: ^19.0.0
@@ -54,11 +54,11 @@ flutter:
 
   assets:
     - assets/icons/
-    - assets/models/
-    - assets/models/symptom_prediction/model.tflite
-    - assets/models/symptom_prediction/tokenizer.json
-    - assets/models/symptom_prediction/mlb.json
     - assets/audio-tracks/
+    # - assets/models/
+    # - assets/models/symptom_prediction/model.tflite 
+    # - assets/models/symptom_prediction/tokenizer.json
+    # - assets/models/symptom_prediction/mlb.json
 
   fonts:
     - family: Outfit
