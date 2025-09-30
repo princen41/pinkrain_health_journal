@@ -16,7 +16,7 @@ class SymptomPredictor {
     const String symptomModelsDir ="assets/models/symptom_prediction";
 
     try {
-      // Load model as a byte buffer to verify it’s accessible
+      // Load model as a byte buffer to verify it’s accessible4
       final modelData = await rootBundle.load('$symptomModelsDir/model.tflite');
       devPrint("Model size: ${modelData.lengthInBytes} bytes");
 
