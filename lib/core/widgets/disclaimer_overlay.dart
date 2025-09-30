@@ -17,7 +17,7 @@ class DisclaimerOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.black80.withOpacity(0.7),
+      color: AppColors.black80.withValues(alpha: 0.7),
       child: SafeArea(
         child: Center(
           child: Container(
@@ -71,7 +71,7 @@ class DisclaimerOverlay extends StatelessWidget {
                       color: Colors.red[50],
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppTokens.stateError.withOpacity(0.4),
+                        color: AppTokens.stateError.withValues(alpha: 0.4),
                         width: 1.5,
                       ),
                     ),
