@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:pinkrain/core/util/helpers.dart';
+import 'package:pinkrain/core/widgets/index.dart';
+import 'package:pinkrain/core/theme/tokens.dart';
 
 import '../../../core/models/medicine_model.dart';
 import '../../../core/theme/icons.dart';
@@ -25,16 +27,9 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   late TextEditingController commentController;
   late String selectedTreatmentType;
   late String selectedColor;
+  late String? selectedSecondaryColor;
   late String selectedMealOption;
   late String selectedDoseUnit;
-
-  final Map<String, Color> colorMap = {
-    'White': Colors.white,
-    'Yellow': Color(0xFFFFF3C4), // Soft pastel yellow
-    'Pink': Color(0xFFFFE4E8),   // Soft pastel pink
-    'Blue': Color(0xFFE3F2FD),   // Soft pastel blue
-    'Red': Color(0xFFFFE5E5),    // Soft pastel red
-  };
 
   @override
   void initState() {
@@ -44,6 +39,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     commentController = TextEditingController(text: widget.treatment.notes);
     selectedTreatmentType = widget.treatment.medicine.type;
     selectedColor = widget.treatment.medicine.color;
+    selectedSecondaryColor = null; // Initialize as null for now
     selectedMealOption = widget.treatment.treatmentPlan.mealOption;
     selectedDoseUnit = widget.treatment.medicine.specs.unit;
   }
@@ -68,28 +64,31 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTreatmentTypeOptions(),
-              const SizedBox(height: 30),
-              _buildColorOptions(),
-              const SizedBox(height: 30),
-              _buildNameField(),
-              const SizedBox(height: 30),
-              _buildDoseField(),
-              const SizedBox(height: 30),
-              _buildMealOptions(),
-              const SizedBox(height: 30),
-              _buildCommentField(),
-              const SizedBox(height: 30),
-              Center(
-                child: _buildSaveButton(),
-              ),
-            ],
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTreatmentTypeOptions(),
+                const SizedBox(height: 30),
+                _buildColorOptions(),
+                const SizedBox(height: 30),
+                _buildNameField(),
+                const SizedBox(height: 30),
+                _buildDoseField(),
+                const SizedBox(height: 30),
+                _buildMealOptions(),
+                const SizedBox(height: 30),
+                _buildCommentField(),
+                const SizedBox(height: 30),
+                Center(
+                  child: _buildSaveButton(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -101,103 +100,52 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Treatment Type',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            children: types.map((type) => Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4.0),
-              child: _buildTreatmentTypeOption(type),
-            )).toList(),
+        FormFieldLabel(text: 'Treatment Type'),
+        ChipSelector(
+          options: types,
+          selectedValue: selectedTreatmentType,
+          onChanged: (type) => setState(() => selectedTreatmentType = type),
+          itemBuilder: (type, isSelected) => Column(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? AppTokens.buttonPrimaryBg
+                      : AppTokens.buttonSecondaryBg,
+                ),
+                child: _futureBuildSvg(type),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                type,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontFamily: 'Outfit',
+                  fontWeight: isSelected
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                  color: isSelected
+                      ? AppTokens.textPrimary
+                      : AppTokens.textSecondary,
+                ),
+              ),
+            ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildTreatmentTypeOption(String type) {
-    final isSelected = selectedTreatmentType == type;
-    return GestureDetector(
-      onTap: () => setState(() => selectedTreatmentType = type),
-      child: Column(
-        children: [
-          Container(
-            key: ValueKey(selectedColor),
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isSelected ? Colors.pink[50] : Colors.transparent,
-              border: Border.all(
-                color: isSelected ? Colors.pink[200]! : Colors.grey[400]!,
-                width: 2,
-              ),
-            ),
-            child: _futureBuildSvg(type),
-          ),
-          SizedBox(height: 5),
-          Text(type,
-              style: TextStyle(
-                color: isSelected ? Colors.pink[400] : Colors.grey[700],
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              )),
-        ],
-      ),
     );
   }
 
   Widget _buildColorOptions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Color',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: ['White', 'Yellow', 'Pink', 'Blue', 'Red']
-                .map((color) => _buildColorOption(color))
-                .toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildColorOption(String color) {
-    final isSelected = selectedColor == color;
-    return GestureDetector(
-      onTap: () => setState(() => selectedColor = color),
-      child: Container(
-        margin: EdgeInsets.only(right: 10),
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: colorMap[color] ?? Colors.grey[300],
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(
-            color: Colors.grey[300]!,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.1),
-              spreadRadius: 0,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Text(color,
-            style: TextStyle(
-              color: Colors.grey[800],
-              fontSize: 16,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            )),
-      ),
+    return ColorPicker(
+      selectedColor: selectedColor,
+      selectedSecondaryColor: selectedSecondaryColor,
+      onChanged: (color) => setState(() => selectedColor = color),
+      onSecondaryChanged: (color) => setState(() => selectedSecondaryColor = color),
+      isDuotone: selectedTreatmentType == 'Capsule',
     );
   }
 
@@ -205,26 +153,10 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Name',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
-        TextField(
+        FormFieldLabel(text: 'Name'),
+        CustomTextField(
           controller: nameController,
-          decoration: InputDecoration(
-            hintText: 'Enter medicine name',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey, width: 1),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey, width: 1),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey, width: 1),
-            ),
-          ),
+          hintText: 'Enter medicine name',
         ),
       ],
     );
@@ -234,63 +166,12 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Dose',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: doseController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: '0.5',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.grey, width: 1),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.grey, width: 1),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.grey, width: 1),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              flex: 1,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey, width: 1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selectedDoseUnit,
-                    items: ['mg', 'g', 'ml'].map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          selectedDoseUnit = newValue;
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ],
+        FormFieldLabel(text: 'Dose'),
+        QuantityUnitRow(
+          quantityController: doseController,
+          selectedUnit: selectedDoseUnit,
+          onUnitChanged: (value) => setState(() => selectedDoseUnit = value!),
+          units: ['mg', 'g', 'ml'], // Treatment screens don't need 'pills'
         ),
       ],
     );
@@ -306,45 +187,47 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Meal Option',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: options.map((option) => _buildMealOption(option)).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMealOption(String option) {
-    final isSelected = selectedMealOption == option;
-    return GestureDetector(
-      onTap: () => setState(() => selectedMealOption = option),
-      child: Column(
-        children: [
-          Container(
-            key: ValueKey(selectedColor),
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isSelected ? Colors.pink[50] : Colors.transparent,
-              border: Border.all(
-                color: isSelected ? Colors.pink[200]! : Colors.grey[400]!,
-                width: 2,
+          children: options.map((option) => Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: GestureDetector(
+                onTap: () => setState(() => selectedMealOption = option),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: selectedMealOption == option
+                            ? AppTokens.buttonPrimaryBg
+                            : AppTokens.buttonSecondaryBg,
+                      ),
+                      child: _futureBuildSvg(option.toLowerCase().replaceAll(' ', '-')),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      option,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Outfit',
+                        fontWeight: selectedMealOption == option
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: selectedMealOption == option
+                            ? AppTokens.textPrimary
+                            : AppTokens.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            child: _futureBuildSvg(option.toLowerCase().replaceAll(' ', '-')),
-          ),
-          SizedBox(height: 5),
-          Text(option,
-              style: TextStyle(
-                color: isSelected ? Colors.pink[400] : Colors.grey[700],
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              )),
-        ],
-      ),
+          )).toList(),
+        ),
+      ],
     );
   }
 
@@ -352,27 +235,10 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Comments',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
-        TextField(
+        FormFieldLabel(text: 'Comments'),
+        CustomTextField(
           controller: commentController,
-          decoration: InputDecoration(
-            hintText: 'Write your comment here',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey, width: 1),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey, width: 1),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey, width: 1),
-            ),
-          ),
-          maxLines: 3,
+          hintText: 'Write your comment here',
         ),
       ],
     );
@@ -529,6 +395,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
         fileName: text.toLowerCase(),
         size: 30,
         color: colorMap[selectedColor],
+        secondaryColor: selectedSecondaryColor != null ? colorMap[selectedSecondaryColor] : null,
         useColorFilter: false
       ),
       builder: (context, snapshot) {

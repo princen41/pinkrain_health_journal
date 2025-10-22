@@ -199,7 +199,7 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '${inventory.quantity} pills left',
+                        '${inventory.quantity} ${medicine.specs.unit} left',
                         style: TextStyle(color: Colors.grey),
                       ),
                     ],

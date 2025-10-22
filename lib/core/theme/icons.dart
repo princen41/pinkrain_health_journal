@@ -16,13 +16,24 @@ Future<SvgPicture> appSvgDynamicImage({
     required String fileName,
     double? size,
     Color? color,
+    Color? secondaryColor,
     bool? useColorFilter,
     }) async {
   try {
     String svgString = await rootBundle.loadString('assets/icons/$fileName.svg');
-    if(color != null && color != Colors.white){
-      svgString = svgString.replaceAll('#8BE8CB', colorToHex(color));
-      svgString = svgString.replaceAll('#05D1A1', colorToHex(darkenColor(color)));
+    if(color != null){
+      if(secondaryColor != null && fileName == 'capsule') {
+        // Duotone mode: only apply to capsule icon
+        // Capsule uses #FFD1FF (pink) and #8BE8CB (light green)
+        svgString = svgString.replaceAll('#FFD1FF', colorToHex(color));
+        svgString = svgString.replaceAll('#8BE8CB', colorToHex(secondaryColor));
+      } else {
+        // Single color mode: use primary color for both patterns
+        svgString = svgString.replaceAll('#8BE8CB', colorToHex(color));
+        svgString = svgString.replaceAll('#05D1A1', colorToHex(darkenColor(color)));
+        // Also handle capsule's pink color in single color mode
+        svgString = svgString.replaceAll('#FFD1FF', colorToHex(color));
+      }
     }
     return SvgPicture.string(
       svgString,

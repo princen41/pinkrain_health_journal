@@ -230,19 +230,31 @@ class JournalLog {
       'Error loading medication logs: $e'.log();
     }
 
-    // If we don't have stored logs or there was an error, create logs for all current treatments
+    // If we don't have stored logs or there was an error, create logs for treatments active on this date
     if (!medicationLogs.containsKey(date) || medicationLogs[date]!.isEmpty) {
-      // Instead of using sample data, use all current treatments from TreatmentManager
+      // Instead of using sample data, use treatments that are active on this specific date
       final treatmentManager = TreatmentManager();
       await treatmentManager.loadTreatments(); // Ensure latest treatments are loaded
-      final currentTreatments = treatmentManager.treatments;
+      final allTreatments = treatmentManager.treatments;
 
-      if (currentTreatments.isNotEmpty) {
-        devPrint("Creating logs for ${currentTreatments.length} current treatments");
+      // Filter treatments that are active on the specific date
+      final activeTreatments = allTreatments.where((treatment) {
+        final startDate = treatment.treatmentPlan.startDate.normalize();
+        final endDate = treatment.treatmentPlan.endDate.normalize();
+        final targetDate = date.normalize();
+        
+        // Treatment is active if the target date is between start and end dates (inclusive)
+        return targetDate.isAtSameMomentAs(startDate) || 
+               targetDate.isAtSameMomentAs(endDate) ||
+               (targetDate.isAfter(startDate) && targetDate.isBefore(endDate));
+      }).toList();
+
+      if (activeTreatments.isNotEmpty) {
+        devPrint("Creating logs for ${activeTreatments.length} treatments active on ${date.toString().split(' ')[0]}");
         medicationLogs[date] = 
-            currentTreatments.map((treatment) => IntakeLog(treatment)).toList();
+            activeTreatments.map((treatment) => IntakeLog(treatment)).toList();
       } else {
-        devPrint("No current treatments found, journal will be empty");
+        devPrint("No treatments active on ${date.toString().split(' ')[0]}, journal will be empty");
         medicationLogs[date] = [];
       }
     }
@@ -453,9 +465,22 @@ class JournalLog {
         }
       }
     } else {
-      // No existing logs, create new ones from all current treatments
-      devPrint("No existing logs, creating new ones from current treatments");
-      for (final treatment in treatmentManager.treatments) {
+      // No existing logs, create new ones from treatments active on this date
+      devPrint("No existing logs, creating new ones from treatments active on ${date.toString().split(' ')[0]}");
+      
+      // Filter treatments that are active on the specific date
+      final activeTreatments = treatmentManager.treatments.where((treatment) {
+        final startDate = treatment.treatmentPlan.startDate.normalize();
+        final endDate = treatment.treatmentPlan.endDate.normalize();
+        final targetDate = date.normalize();
+        
+        // Treatment is active if the target date is between start and end dates (inclusive)
+        return targetDate.isAtSameMomentAs(startDate) || 
+               targetDate.isAtSameMomentAs(endDate) ||
+               (targetDate.isAfter(startDate) && targetDate.isBefore(endDate));
+      }).toList();
+      
+      for (final treatment in activeTreatments) {
         final log = IntakeLog(treatment);
         updatedLogs.add(log);
         needsUpdate = true;
