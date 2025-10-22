@@ -51,6 +51,9 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         duration: Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      
+      // CRITICAL FIX: Initialize journal data for today's date
+      _onPageChanged(1000);
     });
   }
 

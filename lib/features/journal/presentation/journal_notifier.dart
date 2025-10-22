@@ -10,7 +10,7 @@ class SelectedDateNotifier extends StateNotifier<DateTime> {
   Future<void> setDate(DateTime date, WidgetRef ref) async {
     state = date.normalize();
     final pillIntakeNotifier = ref.read(pillIntakeProvider.notifier);
-    await pillIntakeNotifier.populateJournal(state);
+    await pillIntakeNotifier.populateJournal(state, forceReload: true);
   }
   
 }

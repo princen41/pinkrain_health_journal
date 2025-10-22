@@ -239,14 +239,8 @@ class JournalLog {
 
       // Filter treatments that are active on the specific date
       final activeTreatments = allTreatments.where((treatment) {
-        final startDate = treatment.treatmentPlan.startDate.normalize();
-        final endDate = treatment.treatmentPlan.endDate.normalize();
-        final targetDate = date.normalize();
-        
-        // Treatment is active if the target date is between start and end dates (inclusive)
-        return targetDate.isAtSameMomentAs(startDate) || 
-               targetDate.isAtSameMomentAs(endDate) ||
-               (targetDate.isAfter(startDate) && targetDate.isBefore(endDate));
+        // Use the new shouldTakeOnDate method that respects selected days
+        return treatment.treatmentPlan.shouldTakeOnDate(date);
       }).toList();
 
       if (activeTreatments.isNotEmpty) {
@@ -470,14 +464,8 @@ class JournalLog {
       
       // Filter treatments that are active on the specific date
       final activeTreatments = treatmentManager.treatments.where((treatment) {
-        final startDate = treatment.treatmentPlan.startDate.normalize();
-        final endDate = treatment.treatmentPlan.endDate.normalize();
-        final targetDate = date.normalize();
-        
-        // Treatment is active if the target date is between start and end dates (inclusive)
-        return targetDate.isAtSameMomentAs(startDate) || 
-               targetDate.isAtSameMomentAs(endDate) ||
-               (targetDate.isAfter(startDate) && targetDate.isBefore(endDate));
+        // Use the new shouldTakeOnDate method that respects selected days
+        return treatment.treatmentPlan.shouldTakeOnDate(date);
       }).toList();
       
       for (final treatment in activeTreatments) {

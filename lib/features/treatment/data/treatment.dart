@@ -9,6 +9,7 @@ class TreatmentPlan {
   final String mealOption;
   final String instructions;
   final Duration frequency;
+  final List<bool> selectedDays; // 0=Monday, 1=Tuesday, ..., 6=Sunday
   ReminderRL reminderRL = ReminderRL([]);
 
   TreatmentPlan({
@@ -17,7 +18,8 @@ class TreatmentPlan {
     required this.timeOfDay,
     this.mealOption = '',
     this.instructions = '',
-    this.frequency = const Duration(days: 1)
+    this.frequency = const Duration(days: 1),
+    this.selectedDays = const [true, true, true, true, true, true, true] // Default to all days
   });
 
   bool isOnGoing() {
@@ -45,5 +47,25 @@ class TreatmentPlan {
     return requiredNumber < 1
         ? 'Extra pills: $requiredNumber'
         : 'Pills needed: $requiredNumber';
+  }
+
+  /// Check if this treatment should be taken on the given date
+  /// Returns true if the date is within the treatment period AND on a selected day
+  bool shouldTakeOnDate(DateTime date) {
+    // Normalize dates to compare only date parts
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final normalizedStart = DateTime(startDate.year, startDate.month, startDate.day);
+    final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day);
+    
+    // Check if date is within treatment period
+    if (normalizedDate.isBefore(normalizedStart) || normalizedDate.isAfter(normalizedEnd)) {
+      return false;
+    }
+    
+    // Check if the day of week is selected
+    // DateTime.weekday: 1=Monday, 2=Tuesday, ..., 7=Sunday
+    // selectedDays: 0=Monday, 1=Tuesday, ..., 6=Sunday
+    final dayIndex = (normalizedDate.weekday - 1) % 7;
+    return selectedDays[dayIndex];
   }
 }
