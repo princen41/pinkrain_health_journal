@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>This app uses notifications to remind you about medication and wellness activities.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app may use the camera to capture photos for your health journal entries.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app accesses your photo library to add images to your health journal entries.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app may use the microphone for voice notes in your health journal.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -14,9 +14,14 @@ Future<void> main() async {
   await HiveService.init();
   await DisclaimerService.init();
   
-  // Initialize notification service at app startup
-  final notificationService = MedicationNotificationService();
-  await notificationService.initialize();
+  // Initialize notification service at app startup with error handling
+  try {
+    final notificationService = MedicationNotificationService();
+    await notificationService.initialize();
+  } catch (e) {
+    debugPrint('Notification service initialization failed: $e');
+    // Continue app startup even if notifications fail
+  }
   
   // Initialize daily reset service
   final dailyResetService = DailyResetService();
