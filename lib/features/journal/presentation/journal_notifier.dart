@@ -12,10 +12,11 @@ class SelectedDateNotifier extends StateNotifier<DateTime> {
     final pillIntakeNotifier = ref.read(pillIntakeProvider.notifier);
     await pillIntakeNotifier.populateJournal(state, forceReload: true);
   }
-  
 }
 
-final selectedDateProvider = StateNotifierProvider<SelectedDateNotifier, DateTime>((ref) => SelectedDateNotifier());
+final selectedDateProvider =
+    StateNotifierProvider<SelectedDateNotifier, DateTime>(
+        (ref) => SelectedDateNotifier());
 
 class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
   final JournalLog _journalLog = JournalLog();
@@ -24,33 +25,58 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
     // Initialize with empty state, then populate asynchronously
     _initJournal();
   }
-  
+
   Future<void> _initJournal() async {
     await populateJournal(DateTime.now().normalize());
   }
 
-  Future<void> populateJournal(DateTime selectedDate, {bool forceReload = false}) async {
-    state = await _journalLog.getMedicationsForTheDay(selectedDate, forceReload: forceReload);
+  Future<void> populateJournal(DateTime selectedDate,
+      {bool forceReload = false}) async {
+    state = await _journalLog.getMedicationsForTheDay(selectedDate,
+        forceReload: forceReload);
   }
 
   Future<void> pillTaken(IntakeLog log, DateTime date) async {
     log.isTaken = true;
-    
+    log.isSkipped = false; // Reset skip status when taken
+
     // Get the normalized date
     final normalizedDate = date.normalize();
-    
+
     // Save the updated logs to persistent storage
     await _journalLog.saveMedicationLogs(normalizedDate);
   }
-  
+
+  Future<void> pillSkipped(IntakeLog log, DateTime date) async {
+    log.isSkipped = true;
+    log.isTaken = false; // Reset taken status when skipped
+
+    // Get the normalized date
+    final normalizedDate = date.normalize();
+
+    // Save the updated logs to persistent storage
+    await _journalLog.saveMedicationLogs(normalizedDate);
+  }
+
+  Future<void> cancelPillAction(IntakeLog log, DateTime date) async {
+    log.isSkipped = false;
+    log.isTaken = false; // Reset both statuses to neutral
+
+    // Get the normalized date
+    final normalizedDate = date.normalize();
+
+    // Save the updated logs to persistent storage
+    await _journalLog.saveMedicationLogs(normalizedDate);
+  }
+
   /// Force reload all medication data from storage
   Future<void> forceReloadMedicationData(DateTime selectedDate) async {
     // Clear all cached data
     _journalLog.clearAllCachedMedicationLogs();
-    
+
     // Reload from storage for the specific date with force reload flag
     await populateJournal(selectedDate, forceReload: true);
-    
+
     "Medication data forcefully reloaded for ${selectedDate.toString()}".log();
   }
 
@@ -61,14 +87,14 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
   /// Uses in-memory data only - ensure data is loaded before calling
   List<String> getMissedDoseDays() {
     final Map<String, int> missedDoseDays = {};
-    
+
     // Use the existing medicationLogs data
     _journalLog.medicationLogs.forEach((date, intakeLogs) {
       if (intakeLogs.isNotEmpty) {
         final String dayOfWeek = DateFormat('EEEE').format(date);
         final int missedDoses = intakeLogs.where((log) => !log.isTaken).length;
         if (missedDoses > 0) {
-          missedDoseDays.update(dayOfWeek, (count) => count + missedDoses, 
+          missedDoseDays.update(dayOfWeek, (count) => count + missedDoses,
               ifAbsent: () => missedDoses);
         }
       }
@@ -78,12 +104,14 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
     if (missedDoseDays.isEmpty) {
       return [];
     }
-    
+
     final sortedDays = missedDoseDays.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-      
+
     return sortedDays.take(2).map((e) => e.key).toList();
   }
 }
 
-final pillIntakeProvider = StateNotifierProvider<PillIntakeNotifier, List<IntakeLog>>((ref) => PillIntakeNotifier());
+final pillIntakeProvider =
+    StateNotifierProvider<PillIntakeNotifier, List<IntakeLog>>(
+        (ref) => PillIntakeNotifier());

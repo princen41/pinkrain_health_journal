@@ -87,6 +87,10 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 Center(
                   child: _buildSaveButton(),
                 ),
+                const SizedBox(height: 20),
+                Center(
+                  child: _buildDeleteButton(),
+                ),
               ],
             ),
           ),
@@ -247,7 +251,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton(
+      child: Button.primary(
         onPressed: () async {
           if (_validateInput()) {
             try {
@@ -351,14 +355,73 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
             }
           }
         },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFFFFD0FF),
-          padding: EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        child: Text('Save Changes', style: TextStyle(color: Colors.black)),
+        text: 'Save Changes',
+        padding: const EdgeInsets.symmetric(vertical: 15),
+      ),
+    );
+  }
+
+  Widget _buildDeleteButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: Button.destructive(
+        onPressed: () async {
+          // Show confirmation dialog
+          final bool? shouldDelete = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Delete Treatment'),
+                content: Text(
+                  'Are you sure you want to delete "${widget.treatment.medicine.name}"? This action cannot be undone.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (shouldDelete == true) {
+            try {
+              // Delete treatment from database
+              await treatmentManager.deleteTreatment(widget.treatment);
+
+              // Clear medication data caches to ensure refresh
+              if (mounted) {
+                // Refresh journal data
+                ref.invalidate(pillIntakeProvider);
+                
+                // Show success message and pop
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Treatment deleted successfully')),
+                );
+
+                // Return to previous screen
+                Navigator.of(context).pop(true);
+              }
+            } catch (e) {
+              // Show error message
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error deleting treatment: $e')),
+                );
+              }
+            }
+          }
+        },
+        text: 'Delete Treatment',
+        padding: const EdgeInsets.symmetric(vertical: 15),
       ),
     );
   }

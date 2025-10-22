@@ -8,15 +8,17 @@ import '../../treatment/domain/treatment_manager.dart';
 class IntakeLog {
   final Treatment treatment;
   bool isTaken;
+  bool isSkipped;
 
-  IntakeLog(this.treatment, {this.isTaken = false});
+  IntakeLog(this.treatment, {this.isTaken = false, this.isSkipped = false});
 
   /// Convert IntakeLog to a Map for storage
   Map<String, dynamic> toMap() {
     // Debug the ID being stored
     final treatmentId = treatment.id;
     if (treatmentId.isEmpty) {
-      devPrint("WARNING: Empty treatment ID in toMap for ${treatment.medicine.name}");
+      devPrint(
+          "WARNING: Empty treatment ID in toMap for ${treatment.medicine.name}");
     }
 
     return {
@@ -26,9 +28,12 @@ class IntakeLog {
       'medicine_color': treatment.medicine.color,
       'dosage': treatment.medicine.specs.dosage,
       'unit': treatment.medicine.specs.unit,
-      'treatment_plan_start_date': treatment.treatmentPlan.startDate.toIso8601String(),
-      'treatment_plan_end_date': treatment.treatmentPlan.endDate.toIso8601String(),
+      'treatment_plan_start_date':
+          treatment.treatmentPlan.startDate.toIso8601String(),
+      'treatment_plan_end_date':
+          treatment.treatmentPlan.endDate.toIso8601String(),
       'is_taken': isTaken,
+      'is_skipped': isSkipped,
     };
   }
 
@@ -42,12 +47,14 @@ class IntakeLog {
       final dynamic dosageValue = map['dosage'];
       final dynamic unitValue = map['unit'];
       final dynamic isTakenValue = map['is_taken'];
+      final dynamic isSkippedValue = map['is_skipped'];
       final dynamic startDateValue = map['treatment_plan_start_date'];
       final dynamic endDateValue = map['treatment_plan_end_date'];
       final dynamic treatmentIdValue = map['treatment_id'];
 
       // Get treatment ID safely
-      final String treatmentId = (treatmentIdValue is String) ? treatmentIdValue : '';
+      final String treatmentId =
+          (treatmentIdValue is String) ? treatmentIdValue : '';
       if (treatmentId.isEmpty) {
         devPrint("WARNING: Empty treatment ID in fromMap for $nameValue");
       }
@@ -85,8 +92,20 @@ class IntakeLog {
         } else if (isTakenValue is int) {
           isTaken = isTakenValue != 0;
         } else if (isTakenValue is String) {
-          isTaken = isTakenValue.toLowerCase() == 'true' ||
-              isTakenValue == '1';
+          isTaken = isTakenValue.toLowerCase() == 'true' || isTakenValue == '1';
+        }
+      }
+
+      // Convert skipped status with safe default
+      bool isSkipped = false;
+      if (isSkippedValue != null) {
+        if (isSkippedValue is bool) {
+          isSkipped = isSkippedValue;
+        } else if (isSkippedValue is int) {
+          isSkipped = isSkippedValue != 0;
+        } else if (isSkippedValue is String) {
+          isSkipped =
+              isSkippedValue.toLowerCase() == 'true' || isSkippedValue == '1';
         }
       }
 
@@ -136,19 +155,17 @@ class IntakeLog {
 
       // Create the treatment with the explicit ID
       final treatment = Treatment(
-        id: treatmentId,
-        medicine: medicine, 
-        treatmentPlan: treatmentPlan
-      );
+          id: treatmentId, medicine: medicine, treatmentPlan: treatmentPlan);
 
       // Log the ID we're using
       devPrint("Created treatment from map with ID: '$treatmentId'");
 
-      return IntakeLog(treatment, isTaken: isTaken);
+      return IntakeLog(treatment, isTaken: isTaken, isSkipped: isSkipped);
     } catch (e) {
       devPrint('Error in IntakeLog.fromMap: $e');
       // Create a fallback log entry
-      final medicine = Medicine(name: 'Error Loading', type: 'pill', color: 'red')
+      final medicine = Medicine(
+          name: 'Error Loading', type: 'pill', color: 'red')
         ..addSpecification(Specification(dosage: 0.0, unit: 'mg', useCase: ''));
 
       final plan = TreatmentPlan(
@@ -179,7 +196,8 @@ class JournalLog {
 
       // CRITICAL FIX: Always check for up-to-date treatment data
       final treatmentManager = TreatmentManager();
-      await treatmentManager.loadTreatments(); // Ensure latest treatments are loaded
+      await treatmentManager
+          .loadTreatments(); // Ensure latest treatments are loaded
       final latestTreatments = treatmentManager.treatments;
 
       if (logs != null && logs.isNotEmpty) {
@@ -209,7 +227,8 @@ class JournalLog {
                 );
 
                 // Use the updated treatment but preserve the intake status
-                final updatedIntakeLog = IntakeLog(matchingTreatment, isTaken: intakeLog.isTaken);
+                final updatedIntakeLog = IntakeLog(matchingTreatment,
+                    isTaken: intakeLog.isTaken, isSkipped: intakeLog.isSkipped);
                 intakeLogs.add(updatedIntakeLog);
               }
             }
@@ -234,7 +253,8 @@ class JournalLog {
     if (!medicationLogs.containsKey(date) || medicationLogs[date]!.isEmpty) {
       // Instead of using sample data, use treatments that are active on this specific date
       final treatmentManager = TreatmentManager();
-      await treatmentManager.loadTreatments(); // Ensure latest treatments are loaded
+      await treatmentManager
+          .loadTreatments(); // Ensure latest treatments are loaded
       final allTreatments = treatmentManager.treatments;
 
       // Filter treatments that are active on the specific date
@@ -244,11 +264,13 @@ class JournalLog {
       }).toList();
 
       if (activeTreatments.isNotEmpty) {
-        devPrint("Creating logs for ${activeTreatments.length} treatments active on ${date.toString().split(' ')[0]}");
-        medicationLogs[date] = 
+        devPrint(
+            "Creating logs for ${activeTreatments.length} treatments active on ${date.toString().split(' ')[0]}");
+        medicationLogs[date] =
             activeTreatments.map((treatment) => IntakeLog(treatment)).toList();
       } else {
-        devPrint("No treatments active on ${date.toString().split(' ')[0]}, journal will be empty");
+        devPrint(
+            "No treatments active on ${date.toString().split(' ')[0]}, journal will be empty");
         medicationLogs[date] = [];
       }
     }
@@ -284,13 +306,17 @@ class JournalLog {
     }
   }
 
-  Future<List<IntakeLog>> getMedicationsForTheDay(DateTime date, {bool forceReload = false}) async {
+  Future<List<IntakeLog>> getMedicationsForTheDay(DateTime date,
+      {bool forceReload = false}) async {
     date = date.normalize();
 
     // Always reload from storage if force reload is requested
-    if (forceReload || !medicationLogs.containsKey(date) || medicationLogs[date]!.isEmpty) {
+    if (forceReload ||
+        !medicationLogs.containsKey(date) ||
+        medicationLogs[date]!.isEmpty) {
       await _loadMedicationLogs(date);
-      "Medications for ${date.toString()} loaded from storage (force: $forceReload)".log();
+      "Medications for ${date.toString()} loaded from storage (force: $forceReload)"
+          .log();
     } else {
       "Using cached medications for ${date.toString()}".log();
     }
@@ -305,8 +331,9 @@ class JournalLog {
   /// Returns 0.0 if no treatments are present at all.
   double getAdherenceRateAll(DateTime startDate, DateTime endDate) {
     // Normalise the bounds to midnight so we step cleanly day-by-day.
-    final DateTime start = DateTime(startDate.year, startDate.month, startDate.day);
-    final DateTime end   = DateTime(endDate.year,   endDate.month,   endDate.day);
+    final DateTime start =
+        DateTime(startDate.year, startDate.month, startDate.day);
+    final DateTime end = DateTime(endDate.year, endDate.month, endDate.day);
 
     if (end.isBefore(start)) return 0.0;
 
@@ -330,8 +357,8 @@ class JournalLog {
     if (treatmentIds.isEmpty) return 0.0;
 
     // 2️⃣  Expected doses  =  (# days) × (# distinct treatments)
-    final int daysInclusive      = end.difference(start).inDays + 1;
-    final int expectedDoseCount  = treatmentIds.length * daysInclusive;
+    final int daysInclusive = end.difference(start).inDays + 1;
+    final int expectedDoseCount = treatmentIds.length * daysInclusive;
 
     final rawRate = takenDoseCount / expectedDoseCount;
 
@@ -399,7 +426,8 @@ class JournalLog {
     final treatmentManager = TreatmentManager();
     await treatmentManager.loadTreatments(); // Reload fresh from storage
 
-    devPrint("Force reloading medication logs for ${date.toString().split(' ')[0]} with ${treatmentManager.treatments.length} current treatments");
+    devPrint(
+        "Force reloading medication logs for ${date.toString().split(' ')[0]} with ${treatmentManager.treatments.length} current treatments");
 
     // Get the existing logs if any
     final existingLogs = await HiveService.getMedicationLogsForDate(date);
@@ -415,18 +443,20 @@ class JournalLog {
       for (final logMap in existingLogs) {
         final medicineName = logMap['medicine_name'] as String?;
         final isTaken = logMap['is_taken'] as bool? ?? false;
+        final isSkipped = logMap['is_skipped'] as bool? ?? false;
         String treatmentId = logMap['treatment_id'] as String? ?? '';
 
-        devPrint("Processing journal entry for: $medicineName (ID: $treatmentId)");
+        devPrint(
+            "Processing journal entry for: $medicineName (ID: $treatmentId)");
 
         // First try to find by ID if present
         Treatment? updatedTreatment;
         if (treatmentId.isNotEmpty) {
           try {
-            updatedTreatment = treatmentManager.treatments.firstWhere(
-              (t) => t.id == treatmentId
-            );
-            devPrint("Found treatment by ID match: ${updatedTreatment.medicine.name}");
+            updatedTreatment = treatmentManager.treatments
+                .firstWhere((t) => t.id == treatmentId);
+            devPrint(
+                "Found treatment by ID match: ${updatedTreatment.medicine.name}");
           } catch (e) {
             // No treatment found by ID
             devPrint("No treatment found with ID: $treatmentId");
@@ -434,16 +464,19 @@ class JournalLog {
         }
 
         // If ID didn't match or was empty, try by name
-        if (updatedTreatment == null && medicineName != null && medicineName.isNotEmpty) {
+        if (updatedTreatment == null &&
+            medicineName != null &&
+            medicineName.isNotEmpty) {
           try {
-            updatedTreatment = treatmentManager.treatments.firstWhere(
-              (t) => t.medicine.name.toLowerCase() == medicineName.toLowerCase()
-            );
-            devPrint("Found treatment by name match: ${updatedTreatment.medicine.name} with ID: ${updatedTreatment.id}");
+            updatedTreatment = treatmentManager.treatments.firstWhere((t) =>
+                t.medicine.name.toLowerCase() == medicineName.toLowerCase());
+            devPrint(
+                "Found treatment by name match: ${updatedTreatment.medicine.name} with ID: ${updatedTreatment.id}");
 
             // If we found by name but ID is different, it's an update
             if (treatmentId != updatedTreatment.id) {
-              devPrint("ID changed from '$treatmentId' to '${updatedTreatment.id}'");
+              devPrint(
+                  "ID changed from '$treatmentId' to '${updatedTreatment.id}'");
               needsUpdate = true;
             }
           } catch (e) {
@@ -453,26 +486,30 @@ class JournalLog {
 
         // If we found a treatment, create an updated log
         if (updatedTreatment != null) {
-          final log = IntakeLog(updatedTreatment, isTaken: isTaken);
+          final log = IntakeLog(updatedTreatment,
+              isTaken: isTaken, isSkipped: isSkipped);
           updatedLogs.add(log);
-          devPrint("Added log for ${updatedTreatment.medicine.name} with ID: ${updatedTreatment.id}");
+          devPrint(
+              "Added log for ${updatedTreatment.medicine.name} with ID: ${updatedTreatment.id}");
         }
       }
     } else {
       // No existing logs, create new ones from treatments active on this date
-      devPrint("No existing logs, creating new ones from treatments active on ${date.toString().split(' ')[0]}");
-      
+      devPrint(
+          "No existing logs, creating new ones from treatments active on ${date.toString().split(' ')[0]}");
+
       // Filter treatments that are active on the specific date
       final activeTreatments = treatmentManager.treatments.where((treatment) {
         // Use the new shouldTakeOnDate method that respects selected days
         return treatment.treatmentPlan.shouldTakeOnDate(date);
       }).toList();
-      
+
       for (final treatment in activeTreatments) {
         final log = IntakeLog(treatment);
         updatedLogs.add(log);
         needsUpdate = true;
-        devPrint("Created new log for ${treatment.medicine.name} with ID: ${treatment.id}");
+        devPrint(
+            "Created new log for ${treatment.medicine.name} with ID: ${treatment.id}");
       }
     }
 
@@ -482,7 +519,8 @@ class JournalLog {
     // If we made changes, save them
     if (needsUpdate || updatedLogs.length != (existingLogs?.length ?? 0)) {
       await saveMedicationLogs(date);
-      devPrint("Saved updated medication logs with ${updatedLogs.length} entries");
+      devPrint(
+          "Saved updated medication logs with ${updatedLogs.length} entries");
     }
 
     return updatedLogs;
