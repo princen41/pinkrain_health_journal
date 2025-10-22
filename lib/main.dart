@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/navigation/router.dart';
 import 'core/services/hive_service.dart';
+import 'core/services/disclaimer_service.dart';
 import 'features/treatment/services/daily_reset_service.dart';
 import 'features/treatment/services/medication_notification_service.dart';
 
@@ -11,6 +12,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await HiveService.init();
+  await DisclaimerService.init();
   
   // Initialize notification service at app startup with error handling
   try {

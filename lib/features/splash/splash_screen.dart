@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pretty_animated_text/pretty_animated_text.dart';
+import '../../core/services/disclaimer_service.dart';
+import '../../core/widgets/disclaimer_overlay.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,6 +20,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _scaleAnimation;
   late Animation<double> _taglineOpacityAnimation;
   late Animation<double> _taglineSlideAnimation;
+  bool _showDisclaimer = false;
+  bool _animationCompleted = false;
 
   @override
   void initState() {
@@ -67,10 +71,35 @@ class _SplashScreenState extends State<SplashScreen>
     // Wait for the animation to complete
     Timer(const Duration(milliseconds: 2000), () {
       if (mounted) {
-        // Navigate directly to the journal screen
-        context.go('/journal');
+        setState(() {
+          _animationCompleted = true;
+        });
+        _checkDisclaimerAndNavigate();
       }
     });
+  }
+
+  void _checkDisclaimerAndNavigate() {
+    if (!DisclaimerService.hasAcceptedDisclaimer()) {
+      setState(() {
+        _showDisclaimer = true;
+      });
+    } else {
+      _navigateToJournal();
+    }
+  }
+
+  void _navigateToJournal() {
+    if (mounted) {
+      context.go('/journal');
+    }
+  }
+
+  void _onDisclaimerAccepted() {
+    setState(() {
+      _showDisclaimer = false;
+    });
+    _navigateToJournal();
   }
 
   @override
@@ -83,71 +112,82 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.pink[50],
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _opacityAnimation.value,
-              child: Transform.scale(
-                scale: _scaleAnimation.value,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo
-                    Image.asset(
-                      'assets/icons/splash-icon.png',
-                      width: 120,
-                      height: 120,
-                    ),
-                    const SizedBox(height: 24),
-                    // App name
-                    const Text(
-                      'PinkRain',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Tagline with enhanced animation
-                    AnimatedBuilder(
-                      animation: _controller,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(0, _taglineSlideAnimation.value),
-                          child: Opacity(
-                            opacity: _taglineOpacityAnimation.value,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              child: ChimeBellText(
-                                text: "It's time to feel better",
-                                duration: Duration(milliseconds: 700),
-                                type: AnimationType.word,
-                                textStyle: TextStyle(
-                                  fontSize: 18,
-                                  color: Color(0xFF4A4A4A)
-                                )
-                            ),
+      body: Stack(
+        children: [
+          // Main splash content
+          Center(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _opacityAnimation.value,
+                  child: Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Logo
+                        Image.asset(
+                          'assets/icons/splash-icon.png',
+                          width: 120,
+                          height: 120,
+                        ),
+                        const SizedBox(height: 24),
+                        // App name
+                        const Text(
+                          'PinkRain',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                        )
-                        );
-                      },
+                        ),
+                        const SizedBox(height: 20),
+                        // Tagline with enhanced animation
+                        AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, child) {
+                            return Transform.translate(
+                              offset: Offset(0, _taglineSlideAnimation.value),
+                              child: Opacity(
+                                opacity: _taglineOpacityAnimation.value,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 20),
+                                  child: ChimeBellText(
+                                    text: "It's time to feel better",
+                                    duration: Duration(milliseconds: 700),
+                                    type: AnimationType.word,
+                                    textStyle: TextStyle(
+                                      fontSize: 18,
+                                      color: Color(0xFF4A4A4A)
+                                    )
+                                ),
+                              ),
+                            )
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 48),
+                        // Loading indicator (only show if disclaimer is not shown)
+                        if (!_showDisclaimer)
+                          const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            strokeWidth: 3,
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 48),
-                    // Loading indicator
-                    const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      strokeWidth: 3,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Disclaimer overlay
+          if (_showDisclaimer && _animationCompleted)
+            DisclaimerOverlay(
+              onAccepted: _onDisclaimerAccepted,
+            ),
+        ],
       ),
     );
   }
