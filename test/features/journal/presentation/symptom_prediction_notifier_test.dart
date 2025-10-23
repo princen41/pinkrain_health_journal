@@ -43,11 +43,9 @@ void main() {
       // Should not have changed state
       expect(notifier.state, isEmpty);
 
-      // Flag should still be true
-      expect(SymptomPredictionNotifier.predictionInProgress, isTrue);
-
-      // Reset for cleanup
-      SymptomPredictionNotifier.predictionInProgress = false;
+      // Flag should be false because predict() always resets it in finally block
+      // when experimental mode is disabled (which is the default)
+      expect(SymptomPredictionNotifier.predictionInProgress, isFalse);
     });
 
     test('predict handles errors gracefully', () async {

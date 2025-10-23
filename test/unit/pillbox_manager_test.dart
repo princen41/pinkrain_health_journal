@@ -1,16 +1,49 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 import 'package:pinkrain/core/models/medicine_model.dart';
 import 'package:pinkrain/features/pillbox/data/pillbox_model.dart';
 import 'package:pinkrain/features/pillbox/presentation/pillbox_notifier.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('PillBoxManager Tests', () {
     late ProviderContainer container;
+    late Directory tempDir;
 
-    setUp(() {
+    setUpAll(() async {
+      // Create a temporary directory for Hive
+      tempDir = await Directory.systemTemp.createTemp('test_hive_');
+      Hive.init(tempDir.path);
+    });
+
+    setUp(() async {
       container = ProviderContainer();
       PillBoxManager.pillBoxNotifier = container.read(pillBoxProvider.notifier);
+      // Wait for async initialization to complete
+      await Future.delayed(Duration(milliseconds: 100));
+    });
+
+    tearDown(() async {
+      // Wait for any pending operations
+      await Future.delayed(Duration(milliseconds: 100));
+      container.dispose();
+    });
+
+    tearDownAll(() async {
+      // Clean up Hive and temp directory
+      await Hive.close();
+      // Wait a bit before trying to delete the directory
+      await Future.delayed(Duration(milliseconds: 200));
+      try {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
     });
 
     test('addMedicine adds a medicine to the pillbox', () {
