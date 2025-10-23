@@ -6,6 +6,7 @@ import 'package:pinkrain/core/util/date_format_converters.dart';
 
 import '../../features/journal/data/journal_log.dart';
 import '../theme/icons.dart';
+import '../widgets/color_picker.dart';
 
 extension StringExtensions on String {
   void logType(){
@@ -92,21 +93,17 @@ extension IntExtension on int {
   }
 }
 
-final Map<String, Color> colorMap = {
-  'White': Colors.white,
-  'Yellow': Color(0xFFFFF3C4), // Soft pastel yellow
-  'Pink': Color(0xFFFFE4E8),   // Soft pastel pink
-  'Blue': Color(0xFFE3F2FD),   // Soft pastel blue
-  'Red': Color(0xFFFFE5E5),    // Soft pastel red
-};
+// Use the centralized colorMap from ColorPicker widget
+final Map<String, Color> colorMap = ColorPicker.colorMap;
 
 
-FutureBuilder<SvgPicture> futureBuildSvg(String text, String selectedColor, [double size = 30]) {
+FutureBuilder<SvgPicture> futureBuildSvg(String text, String selectedColor, [double size = 30, String? secondaryColor]) {
   return FutureBuilder<SvgPicture>(
       future: appSvgDynamicImage(
           fileName: text.toLowerCase(),
           size: size,
           color: colorMap[selectedColor],
+          secondaryColor: secondaryColor != null ? colorMap[secondaryColor] : null,
           useColorFilter: false
       ),
       builder: (context, snapshot) {

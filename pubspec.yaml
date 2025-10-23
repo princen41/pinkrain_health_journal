@@ -2,10 +2,11 @@ name: pinkrain
 description: "Health Tracking App"
 publish_to: 'none'
 
-version: 2.1.1+6
+version: 2.1.4+9
 
 environment:
   sdk: '>=3.3.4 <4.0.0'
+  flutter: '>=3.27.0'
 
 dependencies:
   flutter:
@@ -54,11 +55,11 @@ flutter:
 
   assets:
     - assets/icons/
-    - assets/models/
-    - assets/models/symptom_prediction/model.tflite
-    - assets/models/symptom_prediction/tokenizer.json
-    - assets/models/symptom_prediction/mlb.json
     - assets/audio-tracks/
+    # - assets/models/
+    # - assets/models/symptom_prediction/model.tflite 
+    # - assets/models/symptom_prediction/tokenizer.json
+    # - assets/models/symptom_prediction/mlb.json
 
   fonts:
     - family: Outfit

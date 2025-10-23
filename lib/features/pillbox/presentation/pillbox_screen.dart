@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:pinkrain/core/theme/colors.dart';
 import 'package:pinkrain/features/pillbox/data/pillbox_model.dart';
 import 'package:pinkrain/features/pillbox/presentation/pillbox_notifier.dart';
 import 'package:pinkrain/features/treatment/data/treatment.dart';
@@ -10,8 +9,7 @@ import 'package:pinkrain/features/treatment/domain/treatment_manager.dart';
 import '../../../core/models/medicine_model.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/util/helpers.dart';
-import '../../../core/widgets/appbar.dart';
-import '../../../core/widgets/bottom_navigation.dart';
+import '../../../core/widgets/index.dart';
 
 class PillboxScreen extends ConsumerWidget {
   const PillboxScreen({super.key});
@@ -167,7 +165,7 @@ class PillboxScreen extends ConsumerWidget {
                       color: AppTokens.textPrimary),
                 ),
                 Text(
-                  'pills left',
+                  '${med.specs.unit} left',
                   style: const TextStyle(
                       fontSize: 16,
                       color: AppTokens.textSecondary),
@@ -183,12 +181,12 @@ class PillboxScreen extends ConsumerWidget {
   void _showAddMedicineDialog(BuildContext context, WidgetRef ref) {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController quantityController = TextEditingController();
-    final TextEditingController unitController = TextEditingController();
     final TextEditingController useCaseController = TextEditingController();
 
     // Define initial values
     String initialMedicationType = 'Tablet';
     String initialColor = 'White';
+    String initialUnit = 'pills';
 
     // Define validation error messages
     String? nameError;
@@ -196,24 +194,24 @@ class PillboxScreen extends ConsumerWidget {
     String? unitError;
     String? useCaseError;
 
-    final Map<String, Color> colorMap = {
-      'White': Colors.white,
-      'Yellow': AppColors.pastelYellow,
-      'Pink': AppColors.pink100,
-      'Blue': AppColors.pastelBlue,
-      'Red': AppColors.pastelRed,
-    };
-
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (dialogContext) {
         // These variables will be properly tracked in the StatefulBuilder
         String selectedMedicationType = initialMedicationType;
         String selectedColor = initialColor;
+        String? selectedSecondaryColor;
+        String selectedUnit = initialUnit;
 
-        return StatefulBuilder(
-          builder: (dialogContext, setState) {
+        return GestureDetector(
+          onTap: () => FocusScope.of(dialogContext).unfocus(),
+          behavior: HitTestBehavior.translucent,
+          child: StatefulBuilder(
+            builder: (dialogContext, setState) {
             // Validation functions
             void validateName() {
               setState(() {
@@ -250,13 +248,8 @@ class PillboxScreen extends ConsumerWidget {
 
             void validateUnit() {
               setState(() {
-                if (unitController.text.isNotEmpty && unitController.text.trim().isEmpty) {
-                  unitError = 'Unit cannot be only whitespace';
-                } else if (unitController.text.length > 10) {
-                  unitError = 'Unit should be 10 characters or less';
-                } else {
-                  unitError = null;
-                }
+                // Unit is now a dropdown, so no validation needed
+                unitError = null;
               });
             }
 
@@ -285,30 +278,27 @@ class PillboxScreen extends ConsumerWidget {
                      useCaseError == null;
             }
 
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  shape: BoxShape.rectangle,
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      offset: Offset(0, 10),
-                      blurRadius: 10,
-                    ),
-                  ],
+            return Container(
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 20,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
                 ),
                 child: SingleChildScrollView(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                  // Drag handle
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                       // Title
                       Text(
                         'Add New Medication',
@@ -320,247 +310,82 @@ class PillboxScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Medication Name',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppTokens.textPrimary,
-                            fontFamily: 'Outfit',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
                       // Medication Name
-                      TextField(
+                      FormFieldLabel(text: 'Medication Name'),
+                      CustomTextField(
                         controller: nameController,
-                        cursorColor: AppTokens.cursor,
-                        decoration: InputDecoration(
-                          hintText: 'Paracetamol',
-                          hintStyle: TextStyle(
-                              color: AppTokens.textPlaceholder
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.all(15),
-                          errorText: nameError,
-                          errorStyle: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onChanged: (_) => validateName(),
+                        hintText: 'Paracetamol',
+                        errorText: nameError,
+                        onChanged: validateName,
                       ),
                       const SizedBox(height: 20),
 
-                      // Medication Type Label
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Medication Type',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppTokens.textPrimary,
-                            fontFamily: 'Outfit',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Medication Type Selection
-                      SizedBox(
-                        height: 100,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
+                      // Medication Type
+                      FormFieldLabel(text: 'Medication Type'),
+                      ChipSelector(
+                        options: ['Tablet', 'Capsule', 'Drops', 'Cream', 'Spray', 'Injection'],
+                        selectedValue: selectedMedicationType,
+                        onChanged: (type) => setState(() => selectedMedicationType = type),
+                        itemBuilder: (type, isSelected) => Column(
                           children: [
-                            'Tablet',
-                            'Capsule',
-                            'Drops',
-                            'Cream',
-                            'Spray',
-                            'Injection'
-                          ].map((type) {
-                            final bool isSelected = selectedMedicationType == type;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 15),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    selectedMedicationType = type;
-                                  });
-                                },
-                                child: Column(
-                                  children: [
-                                    Container(
-                                      width: 60,
-                                      height: 60,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: isSelected
-                                            ? AppTokens.buttonPrimaryBg
-                                            : AppTokens.buttonSecondaryBg,
-                                      ),
-                                      child: futureBuildSvg(type, selectedColor, 40),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      type,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontFamily: 'Outfit',
-                                        fontWeight: isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                        color: isSelected
-                                            ? AppTokens.textPrimary
-                                            : AppTokens.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSelected
+                                    ? AppTokens.buttonPrimaryBg
+                                    : AppTokens.buttonSecondaryBg,
                               ),
-                            );
-                          }).toList(),
+                              child: futureBuildSvg(type, selectedColor, 40, selectedSecondaryColor),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              type,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontFamily: 'Outfit',
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: isSelected
+                                    ? AppTokens.textPrimary
+                                    : AppTokens.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 20),
 
-                      // Color Label
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Color',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppTokens.textPrimary,
-                            fontFamily: 'Outfit',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Color Selection
-                      SizedBox(
-                        height: 42,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: colorMap.keys.map((color) {
-                            final bool isSelected = selectedColor == color;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    selectedColor = color;
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: colorMap[color],
-                                    borderRadius: BorderRadius.circular(30),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? AppTokens.borderStrong
-                                          : AppTokens.borderLight,
-                                    ),
-                                  ),
-                                child: Center(
-                                  child: Text(
-                                    color,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: 'Outfit',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                      // Color
+                      ColorPicker(
+                        selectedColor: selectedColor,
+                        selectedSecondaryColor: selectedSecondaryColor,
+                        onChanged: (color) => setState(() => selectedColor = color),
+                        onSecondaryChanged: (color) => setState(() => selectedSecondaryColor = color),
+                        isDuotone: selectedMedicationType == 'Capsule',
                       ),
                       const SizedBox(height: 20),
 
-                      // Quantity, Unit, Use Case fields
-                      TextField(
-                        controller: quantityController,
-                        cursorColor: Colors.pink[400],
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          hintText: 'Quantity',
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.all(15),
-                          errorText: quantityError,
-                          errorStyle: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onChanged: (_) => validateQuantity(),
+                      // Quantity and Unit
+                      FormFieldLabel(text: 'Quantity'),
+                      QuantityUnitRow(
+                        quantityController: quantityController,
+                        selectedUnit: selectedUnit,
+                        onUnitChanged: (value) => setState(() => selectedUnit = value!),
+                        quantityError: quantityError,
+                        onQuantityChanged: validateQuantity,
                       ),
                       const SizedBox(height: 16),
 
-                      TextField(
-                        controller: unitController,
-                        cursorColor: Colors.pink[400],
-                        decoration: InputDecoration(
-                          hintText: 'Unit (e.g., mg, ml)',
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.all(15),
-                          errorText: unitError,
-                          errorStyle: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onChanged: (_) => validateUnit(),
-                      ),
-                      const SizedBox(height: 16),
-
-                      TextField(
+                      // Use Case
+                      FormFieldLabel(text: 'Use Case'),
+                      CustomTextField(
                         controller: useCaseController,
-                        cursorColor: Colors.pink[400],
-                        decoration: InputDecoration(
-                          hintText: 'What is this medication for?',
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.all(15),
-                          errorText: useCaseError,
-                          errorStyle: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onChanged: (_) => validateUseCase(),
+                        hintText: 'What is this medication for?',
+                        errorText: useCaseError,
+                        onChanged: validateUseCase,
                       ),
                       const SizedBox(height: 30),
 
@@ -603,9 +428,7 @@ class PillboxScreen extends ConsumerWidget {
                                 final quantity = int.tryParse(quantityController.text) ?? 0;
 
                                 final specification = Specification(
-                                  unit: unitController.text.isNotEmpty
-                                      ? unitController.text.trim()
-                                      : 'mg',
+                                  unit: selectedUnit,
                                   useCase: useCaseController.text.trim(),
                                 );
                                 newMedicine.addSpecification(specification);
@@ -654,9 +477,9 @@ class PillboxScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-              ),
             );
           },
+          ),
         );
       },
     );

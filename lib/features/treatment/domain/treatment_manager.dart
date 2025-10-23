@@ -58,6 +58,7 @@ class Treatment {
         'mealOption': treatmentPlan.mealOption,
         'instructions': treatmentPlan.instructions,
         'frequency': treatmentPlan.frequency.inDays,
+        'selectedDays': treatmentPlan.selectedDays,
       },
       'notes': notes,
     };
@@ -92,6 +93,8 @@ class Treatment {
         mealOption: treatmentPlanJson['mealOption'] as String,
         instructions: treatmentPlanJson['instructions'] as String,
         frequency: Duration(days: treatmentPlanJson['frequency'] as int),
+        selectedDays: (treatmentPlanJson['selectedDays'] as List<dynamic>?)?.map((e) => e as bool).toList() ?? 
+                     [true, true, true, true, true, true, true],
       );
 
       // Handle id more safely
@@ -136,6 +139,7 @@ class Treatment {
     String? mealOption,
     String? instructions,
     Duration? frequency,
+    List<bool>? selectedDays,
     String? id,
   }) {
     final specs = Specification(
@@ -151,6 +155,7 @@ class Treatment {
     mealOption ??= 'No preference';
     instructions ??= '';
     frequency ??= const Duration(days: 1);
+    selectedDays ??= [true, true, true, true, true, true, true];
 
     // Create medicine and add specification
     final medicine = Medicine(
@@ -167,6 +172,7 @@ class Treatment {
       mealOption: mealOption,
       instructions: instructions,
       frequency: frequency,
+      selectedDays: selectedDays,
     );
 
     // Generate a unique ID if none provided
@@ -300,7 +306,6 @@ class TreatmentManager {
           
           // CRITICAL FIX: Generate an ID for any treatment missing one
           if (treatment.id.isEmpty) {
-            devPrint('Generated new ID for existing treatment: ${treatment.medicine.name}');
             _treatments.add(Treatment(
               id: generateUniqueId(),
               medicine: treatment.medicine,
@@ -322,9 +327,18 @@ class TreatmentManager {
   }
 
   Future<void> saveTreatment(Treatment treatment) async {
+    
     final json = _sanitizeMap(treatment.toJson());
     await HiveService.saveTreatment(json);
-    _treatments.add(treatment);
+    
+    // Check if treatment already exists in memory and update it instead of adding duplicate
+    final existingIndex = _treatments.indexWhere((t) => t.id == treatment.id);
+    if (existingIndex != -1) {
+      _treatments[existingIndex] = treatment;
+    } else {
+      _treatments.add(treatment);
+    }
+    
   }
 
   /// Update an existing treatment
@@ -334,7 +348,6 @@ class TreatmentManager {
       await loadTreatments();
       
       // Log the treatment we're looking for
-      devPrint('Looking for treatment to update with ID: ${oldTreatment.id}');
       
       // Convert to maps with only string keys at every level
       final oldJson = _sanitizeMap(oldTreatment.toJson());
@@ -344,31 +357,25 @@ class TreatmentManager {
       final index = _treatments.indexWhere((t) => t.id == oldTreatment.id);
       
       if (index != -1) {
-        devPrint('Found treatment by ID at index: $index');
         _treatments[index] = updatedTreatment;
         
         // Persist update
         await HiveService.updateTreatment(oldJson, updatedJson);
-        devPrint('Treatment updated successfully in memory and storage');
       } else {
         // Fallback to find by name (for backward compatibility)
-        devPrint('Treatment not found by ID, trying name match');
         final nameIndex = _treatments.indexWhere((t) => 
           t.medicine.name.toLowerCase() == oldTreatment.medicine.name.toLowerCase()
         );
         
         if (nameIndex != -1) {
-          devPrint('Found treatment by name at index: $nameIndex');
           _treatments[nameIndex] = updatedTreatment;
           await HiveService.updateTreatment(oldJson, updatedJson);
         } else {
           // If we couldn't find it by either method, we'll need to use a more direct approach
-          devPrint('Treatment not found by ID or name, attempting direct update in storage');
           await HiveService.updateTreatment(oldJson, updatedJson);
         }
       }
     } catch (e) {
-      devPrint('Error in updateTreatment: $e');
       rethrow; // Ensure errors propagate up for UI handling
     }
   }

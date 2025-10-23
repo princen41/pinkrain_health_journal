@@ -77,7 +77,44 @@ flutter run
 flutter run --dart-define=EXPERIMENTAL=true
 ```
 
-### 5. Run Tests
+### 5. iOS Setup (macOS only)
+
+If you're developing on macOS and want to run on iOS:
+
+1. **Create your developer settings file**:
+   ```bash
+   # Copy the template and add your Apple Developer Team ID
+   cp ios/Flutter/DeveloperSettings.xcconfig ios/Flutter/DeveloperSettings.xcconfig.local
+   ```
+
+2. **Edit the file** with your Apple Developer Team ID:
+   ```bash
+   # Open the file in your editor
+   code ios/Flutter/DeveloperSettings.xcconfig.local
+   ```
+   
+   Replace the placeholder with your actual Apple Developer Team ID:
+   ```
+   // Developer-specific settings (gitignored)
+   // Each developer should create their own copy with their team ID
+   DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE
+   ```
+
+3. **Update Config.xcconfig** to use your local settings:
+   ```bash
+   # Edit ios/Flutter/Config.xcconfig
+   # Change the include line to:
+   #include "DeveloperSettings.xcconfig.local"
+   ```
+
+4. **Run on iOS**:
+   ```bash
+   flutter run -d ios
+   ```
+
+> **Note**: The `DeveloperSettings.xcconfig` file is gitignored to prevent committing personal Apple Developer Team IDs. Each developer should create their own local copy.
+
+### 6. Run Tests
 
 ```bash
 # Run all tests

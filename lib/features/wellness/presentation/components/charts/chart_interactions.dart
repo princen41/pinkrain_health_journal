@@ -1,4 +1,3 @@
-/// Reusable tooltip, hover, and click handlers for wellness charts
 import 'package:flutter/material.dart';
 import 'package:cristalyse/cristalyse.dart';
 import 'chart_data_models.dart';
@@ -161,15 +160,27 @@ class _MoodTrendTooltip extends StatelessWidget {
 
   String _formatDate(DateTime? date, ChartTimeRange timeRange) {
     if (date == null) return 'Unknown date';
-    
+
     switch (timeRange) {
       case ChartTimeRange.day:
         return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
       case ChartTimeRange.month:
         return '${date.day}/${date.month}';
       case ChartTimeRange.year:
-        final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        final months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec'
+        ];
         return months[date.month - 1];
     }
   }
@@ -337,12 +348,25 @@ class InteractionHelpers {
         if (hour == 12) return '12 PM';
         if (hour < 12) return '$hour AM';
         return '${hour - 12} PM';
-        
+
       case ChartTimeRange.month:
         return '${value.toInt() + 1}';
-        
+
       case ChartTimeRange.year:
-        final months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+        final months = [
+          'J',
+          'F',
+          'M',
+          'A',
+          'M',
+          'J',
+          'J',
+          'A',
+          'S',
+          'O',
+          'N',
+          'D'
+        ];
         return months[value.toInt().clamp(0, 11)];
     }
   }

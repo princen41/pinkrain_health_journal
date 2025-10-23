@@ -30,6 +30,12 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
   bool isLoading = true;
   bool isExpanded = false;
 
+  // Helper method to safely call setState
+  void safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   // Sanitize text by removing reference symbols like [1], [4], [6], etc.
   String sanitizeText(String text) {
     // Regular expression to match reference symbols like [1], [4], [6], etc.
@@ -62,7 +68,7 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
 
           if (summaryParas.isNotEmpty) {
             final summaryText = sanitizeText(summaryParas.join('\n\n'));
-            setState(() {
+            safeSetState(() {
               description = summaryText;
               isLoading = false;
             });
@@ -71,23 +77,23 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
         }
 
         // Default fallback message if no paragraphs found
-        setState(() {
+        safeSetState(() {
           description = "This medication is used to treat various conditions. Please consult your doctor for specific information.";
           isLoading = false;
         });
       } else if (response.statusCode == 404) {
-        setState(() {
+        safeSetState(() {
           description = "Information for this medication was not found in our database.";
           isLoading = false;
         });
       } else {
-        setState(() {
+        safeSetState(() {
           description = "Unable to load medication information. Status code: ${response.statusCode}";
           isLoading = false;
         });
       }
     } catch (e) {
-      setState(() {
+      safeSetState(() {
         if (e is TimeoutException) {
           description = "Request timed out. Please check your internet connection and try again.";
         } else if (e.toString().contains('SocketException') || 
@@ -199,7 +205,7 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '${inventory.quantity} pills left',
+                        '${inventory.quantity} ${medicine.specs.unit} left',
                         style: TextStyle(color: Colors.grey),
                       ),
                     ],
@@ -260,7 +266,7 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                                 padding: const EdgeInsets.only(top: 8),
                                 child: GestureDetector(
                                   onTap: () {
-                                    setState(() {
+                                    safeSetState(() {
                                       isExpanded = !isExpanded;
                                     });
                                   },
@@ -278,7 +284,7 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                                 padding: const EdgeInsets.only(top: 10),
                                 child: ElevatedButton.icon(
                                   onPressed: () {
-                                    setState(() {
+                                    safeSetState(() {
                                       isLoading = true;
                                       description = 'Loading medication information...';
                                     });
@@ -466,10 +472,10 @@ void _showFillUpDialog(BuildContext context, PillBoxNotifier notifier, MedicineI
                   if (isAdding) {
                     newPillCount = pillsLeft + pillsChange;
                   } else {
-                    newPillCount = (pillsLeft - pillsChange).clamp(0, pillsLeft);
+                    newPillCount = (pillsLeft - pillsChange).clamp(0, pillsLeft).toInt();
                   }
                   notifier.updateMedicineQuantity(inventory, newPillCount);
-                  setState(() {}); // Refresh UI
+                  safeSetState(() {}); // Refresh UI
                   Navigator.of(dialogContext).pop();
                 },
                 child: Text('Update'),

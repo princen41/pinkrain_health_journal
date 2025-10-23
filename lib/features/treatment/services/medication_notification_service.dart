@@ -156,7 +156,16 @@ class MedicationNotificationService {
       // Only show notifications for untaken medications
       if (!medication.isTaken) {
         // Create a unique ID for this medication to avoid duplicates
-        final medicationId = '${medication.treatment.medicine.name}_${DateTime.now().day}';
+        // Use treatment ID if available, otherwise fall back to composite key
+        final treatmentId = medication.treatment.id;
+        final String medicationId;
+        if (treatmentId.isNotEmpty) {
+          medicationId = '${treatmentId}_${DateTime.now().day}';
+        } else {
+          // Fallback to medicine name + treatment start timestamp to avoid collisions
+          final startTimestamp = medication.treatment.treatmentPlan.startDate.millisecondsSinceEpoch;
+          medicationId = '${medication.treatment.medicine.name}_${startTimestamp}_${DateTime.now().day}';
+        }
         
         // Check if we've already notified for this medication today
         if (!_notifiedMedicationIds.contains(medicationId)) {

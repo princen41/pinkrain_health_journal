@@ -83,8 +83,8 @@ class MedicationSchedulerService {
     DateTime now = DateTime.now();
     
     for (var medication in medications) {
-      // Only schedule for untaken medications
-      if (!medication.isTaken) {
+      // Only schedule for untaken and unskipped medications
+      if (!medication.isTaken && !medication.isSkipped) {
         // Get the scheduled time for this medication
         final scheduledTime = _getScheduledTimeForMedication(medication);
         
@@ -155,8 +155,25 @@ class MedicationSchedulerService {
     // Combine existing and new notifications, removing duplicates
     final allNotifications = [...scheduledNotifications, ...newScheduledNotifications];
     
+    // Deduplicate notifications using a composite key of medicationId + scheduledTime
+    // Prefer the most recent entry when keys collide
+    final Map<String, Map<String, dynamic>> uniqueNotifications = {};
+    
+    for (final notification in allNotifications) {
+      final String compositeKey = '${notification['medicationId']}_${notification['scheduledTime']}';
+      
+      // If we already have this key, keep the one with the higher ID (more recent)
+      if (!uniqueNotifications.containsKey(compositeKey) || 
+          notification['id'] > uniqueNotifications[compositeKey]!['id']) {
+        uniqueNotifications[compositeKey] = notification;
+      }
+    }
+    
+    // Convert back to list for saving
+    final deduplicatedNotifications = uniqueNotifications.values.toList();
+    
     // Save the updated list of scheduled notifications
-    await _saveScheduledNotifications(box, allNotifications);
+    await _saveScheduledNotifications(box, deduplicatedNotifications);
   }
   
   /// Clean up notifications that have already passed

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/util/helpers.dart';
 import '../../../core/widgets/appbar.dart';
 import '../../../features/journal/presentation/journal_notifier.dart';
 import '../domain/treatment_manager.dart';
@@ -21,7 +22,7 @@ class DurationScreen extends ConsumerStatefulWidget {
 class DurationScreenState extends ConsumerState<DurationScreen> {
   final List<bool> selectedDays = List.generate(7, (index) => false);
   int selectedDuration = 5;
-  DateTime startDate = DateTime.now().add(const Duration(days: 1));
+  DateTime startDate = DateTime.now().add(const Duration(days: 1)).normalize();
   final TreatmentManager treatmentManager = TreatmentManager();
 
   List<Widget> _buildDayButtons() {
@@ -129,8 +130,8 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
               onChanged: (String? newValue) {
                 setState(() {
                   startDate = newValue == 'tomorrow'
-                      ? DateTime.now().add(const Duration(days: 1))
-                      : DateTime.now();
+                      ? DateTime.now().add(const Duration(days: 1)).normalize()
+                      : DateTime.now().normalize();
                 });
               },
             ),
@@ -213,15 +214,38 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                     onPressed: () async {
                       widget.treatment.treatmentPlan.startDate = startDate;
                       widget.treatment.treatmentPlan.endDate =
-                          startDate.add(Duration(days: selectedDuration));
+                          startDate.add(Duration(days: selectedDuration - 1)).normalize();
 
-                      await treatmentManager.saveTreatment(widget.treatment);
+                      // Save the selected days - create a new TreatmentPlan with selectedDays
+                      final updatedTreatment = Treatment.newTreatment(
+                        id: widget.treatment.id,
+                        name: widget.treatment.medicine.name,
+                        type: widget.treatment.medicine.type,
+                        color: widget.treatment.medicine.color,
+                        dose: widget.treatment.medicine.specs.dosage,
+                        unit: widget.treatment.medicine.specs.unit,
+                        useCase: widget.treatment.medicine.specs.useCase,
+                        startDate: startDate,
+                        endDate: startDate.add(Duration(days: selectedDuration - 1)).normalize(),
+                        mealOption: widget.treatment.treatmentPlan.mealOption,
+                        instructions: widget.treatment.treatmentPlan.instructions,
+                        frequency: widget.treatment.treatmentPlan.frequency,
+                        selectedDays: selectedDays,
+                      );
+                      
+                      // Preserve the time from the original treatment
+                      updatedTreatment.treatmentPlan.timeOfDay = widget.treatment.treatmentPlan.timeOfDay;
+                      
+                      await treatmentManager.saveTreatment(updatedTreatment);
 
                       if (mounted) {
+                        // Clear all cached medication logs to ensure new treatment appears on all relevant dates
+                        final pillIntakeNotifier = ref.read(pillIntakeProvider.notifier);
+                        pillIntakeNotifier.journalLog.clearAllCachedMedicationLogs();
+                        
                         // Refresh the journal data for the current date
                         final selectedDate = ref.read(selectedDateProvider);
-                        final pillIntakeNotifier = ref.read(pillIntakeProvider.notifier);
-                        await pillIntakeNotifier.populateJournal(selectedDate);
+                        await pillIntakeNotifier.populateJournal(selectedDate, forceReload: true);
                         
                         if (mounted && context.mounted) {
                           context.go('/journal');

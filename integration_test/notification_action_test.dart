@@ -6,6 +6,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:pinkrain/core/util/helpers.dart';
 import 'package:pinkrain/features/journal/domain/push_notifications.dart';
 import 'package:pinkrain/features/treatment/services/medication_action_service.dart';
+import '../test/features/journal/domain/push_notifications_test_helper.dart';
 
 /// Integration test for notification actions
 /// Tests both the "Snooze" and "Mark as Taken" actions
@@ -96,7 +97,7 @@ void main() {
       );
 
       // Manually call the handler method (simulating tapping "Mark as Taken")
-      await notificationService.testHandleNotificationResponse(takenResponse);
+      await NotificationTestHelper.simulateNotificationResponse(notificationService, takenResponse);
 
       // Verify medication was marked as taken in the database
       final isTaken =
@@ -120,7 +121,7 @@ void main() {
       await box.clear();
 
       // Manually call the handler method (simulating tapping "Snooze")
-      await notificationService.testHandleNotificationResponse(snoozeResponse);
+      await NotificationTestHelper.simulateNotificationResponse(notificationService, snoozeResponse);
 
       // Verify medication status is now "snoozed"
       final statusMap =

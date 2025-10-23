@@ -12,11 +12,9 @@ import 'package:pretty_animated_text/pretty_animated_text.dart';
 import '../../../core/theme/icons.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/util/date_format_converters.dart';
-import '../../../core/widgets/bottom_navigation.dart';
+import '../../../core/widgets/index.dart';
 import '../data/journal_log.dart';
 import 'journal_notifier.dart';
-
-
 
 class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
@@ -51,6 +49,9 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         duration: Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+
+      // CRITICAL FIX: Initialize journal data for today's date
+      _onPageChanged(1000);
     });
   }
 
@@ -71,8 +72,6 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     final weekIndex = getWeekIndex(newDate);
     _dateScrollController.jumpToPage(weekIndex);
   }
-
-
 
   // Check if it's the first launch of the day and show mood prompt
   void _checkDailyMood() async {
@@ -120,34 +119,37 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     return Scaffold(
       backgroundColor: AppTokens.bgPrimary,
       body: RefreshIndicator(
-            color: Colors.pink[100],
-            backgroundColor: Colors.white,
-            onRefresh: _refreshJournal,
-            child: Column(
-                children: [
-                  _buildDateSelector(),
-                  Expanded(
-                    child: PageView.builder(
-                        controller: _pageController,
-                        onPageChanged: _onPageChanged,
-                        itemBuilder: (context, index) {
-                          //final date = DateTime.now().add(Duration(days: index - 1000));
-                          return ListView(
-                            children: [
-                              _buildTodayHeading(),
-                              _buildMorningSection(),
-                              _buildEveningSection(),
-                            ],
-                          );
-                        },
-                      ),
-                  ),
-                ],
-              )
-      ),
+          color: Colors.pink[100],
+          backgroundColor: Colors.white,
+          onRefresh: _refreshJournal,
+          child: Column(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: _buildDateSelector(),
+              ),
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: _onPageChanged,
+                  itemBuilder: (context, index) {
+                    //final date = DateTime.now().add(Duration(days: index - 1000));
+                    return ListView(
+                      children: [
+                        _buildTodayHeading(),
+                        _buildMorningSection(),
+                        _buildEveningSection(),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          )),
       floatingActionButton: _buildFloatingActionButton(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: buildBottomNavigationBar(context: context, currentRoute: 'journal'),
+      bottomNavigationBar:
+          buildBottomNavigationBar(context: context, currentRoute: 'journal'),
     );
   }
 
@@ -156,11 +158,12 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   }
 
   int getWeekIndex(DateTime date) {
-    final mondayToday = normalizeDate(DateTime.now()).subtract(Duration(days: DateTime.now().weekday - 1));
-    final mondayTarget = normalizeDate(date).subtract(Duration(days: date.weekday - 1));
+    final mondayToday = normalizeDate(DateTime.now())
+        .subtract(Duration(days: DateTime.now().weekday - 1));
+    final mondayTarget =
+        normalizeDate(date).subtract(Duration(days: date.weekday - 1));
     return mondayTarget.difference(mondayToday).inDays ~/ 7;
   }
-
 
   Widget _buildDateSelector() {
     return SizedBox(
@@ -170,8 +173,10 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         itemBuilder: (context, weekIndex) {
           // Get Monday of the current week, then shift by weekIndex
           DateTime today = DateTime.now();
-          int daysToSubtract = today.weekday - DateTime.monday; // weekday: 1 (Mon) to 7 (Sun)
-          DateTime monday = DateTime(today.year, today.month, today.day).subtract(Duration(days: daysToSubtract));
+          int daysToSubtract =
+              today.weekday - DateTime.monday; // weekday: 1 (Mon) to 7 (Sun)
+          DateTime monday = DateTime(today.year, today.month, today.day)
+              .subtract(Duration(days: daysToSubtract));
           DateTime startOfWeek = monday.add(Duration(days: weekIndex * 7));
 
           return Row(
@@ -187,28 +192,29 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
 
               return GestureDetector(
                 onTap: () {
-                  int difference = normalizeDate(date).difference(normalizeDate(DateTime.now())).inDays;
+                  int difference = normalizeDate(date)
+                      .difference(normalizeDate(DateTime.now()))
+                      .inDays;
 
                   final weekIndex = getWeekIndex(date);
                   _dateScrollController.jumpToPage(weekIndex);
-
 
                   _pageController.animateToPage(
                     1000 + difference,
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                   );
-
                 },
                 child: Container(
                   width: 45,
                   height: 65,
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.grey[800]
-                        : AppTokens.bgMuted,
+                    color: isSelected ? Colors.grey[800] : AppTokens.bgMuted,
                     shape: BoxShape.circle,
                     border: isToday && !isSelected
-                        ? Border.all(color: Colors.grey[600] ?? Colors.grey.shade600, width: 1.5)
+                        ? Border.all(
+                            color: Colors.grey[600] ?? Colors.grey.shade600,
+                            width: 1.5)
                         : null,
                   ),
                   child: Column(
@@ -244,8 +250,6 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
       ),
     );
   }
-
-
 
   Widget _buildTodayHeading() {
     final date = selectedDate;
@@ -314,7 +318,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           if (mood <= 1) {
             cardColor = Colors.blue[50] ?? Colors.blue.shade50; // Sad mood
           } else if (mood == 2) {
-            cardColor = Colors.grey[100] ?? Colors.grey.shade100; // Neutral mood
+            cardColor =
+                Colors.grey[100] ?? Colors.grey.shade100; // Neutral mood
           } else {
             cardColor = AppTokens.buttonPrimaryBg; // Happy mood
           }
@@ -349,8 +354,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                         children: [
                           BlurText(
                             text: hasMood && (moodData?['mood'] != null)
-                            ? 'I felt ${getMoodLabel(moodData?['mood']).toLowerCase()}'
-                            : 'How did you feel?',
+                                ? 'I felt ${getMoodLabel(moodData?['mood']).toLowerCase()}'
+                                : 'How did you feel?',
                             duration: const Duration(milliseconds: 500),
                             type: AnimationType.word,
                             textStyle: TextStyle(
@@ -363,11 +368,16 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                           if (hasMood && moodData != null)
                             ChimeBellText(
                               text: (moodData['description'] as String),
-                              duration: Duration(milliseconds:
-                              moodData['description'].toString().isEmpty
-                                ? 500 // Default duration if description is empty
-                                : (500 / (moodData['description'].toString().length)).toInt()
-                              ),
+                              duration: Duration(
+                                  milliseconds: moodData['description']
+                                          .toString()
+                                          .isEmpty
+                                      ? 500 // Default duration if description is empty
+                                      : (500 /
+                                              (moodData['description']
+                                                  .toString()
+                                                  .length))
+                                          .toInt()),
                               type: AnimationType.letter,
                               textStyle: TextStyle(
                                 fontSize: 14,
@@ -383,28 +393,32 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: hasMood && moodData != null ? Colors.white : Colors.grey[200],
+                        color: hasMood && moodData != null
+                            ? Colors.white
+                            : Colors.grey[200],
                         shape: BoxShape.circle,
-                        boxShadow: hasMood && moodData != null ? [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(20),
-                            blurRadius: 2,
-                            spreadRadius: 1,
-                          )
-                        ] : null,
+                        boxShadow: hasMood && moodData != null
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(20),
+                                  blurRadius: 2,
+                                  spreadRadius: 1,
+                                )
+                              ]
+                            : null,
                       ),
                       child: hasMood && moodData != null
-                        ? Center(
-                            child: Text(
-                              getMoodEmoji(moodData['mood'] as int),
-                              style: TextStyle(fontSize: 24),
+                          ? Center(
+                              child: Text(
+                                getMoodEmoji(moodData['mood'] as int),
+                                style: TextStyle(fontSize: 24),
+                              ),
+                            )
+                          : Icon(
+                              Icons.add,
+                              color: Colors.grey[400],
+                              size: 24,
                             ),
-                          )
-                        : Icon(
-                            Icons.add,
-                            color: Colors.grey[400],
-                            size: 24,
-                          ),
                     ),
                   ],
                 ),
@@ -444,7 +458,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         // Parse timestamp - handle both string and int formats
         DateTime timestamp;
         if (moodData['timestamp'] is int) {
-          timestamp = DateTime.fromMillisecondsSinceEpoch(moodData['timestamp'] as int);
+          timestamp =
+              DateTime.fromMillisecondsSinceEpoch(moodData['timestamp'] as int);
         } else {
           timestamp = DateTime.parse(moodData['timestamp'] as String);
         }
@@ -518,7 +533,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
                     child: Text('Close'),
                   ),
@@ -534,7 +550,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
                     child: Text('Edit'),
                   ),
@@ -608,49 +625,52 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     );
   }
 
-
   Widget _buildMorningSection() {
     final date = selectedDate;
     final List<IntakeLog> medications = medList.forMorning();
 
-    return medications.isEmpty ? SizedBox() : Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader('Morning - ${date.day.ordinal()} ${getMonthName(date.month)}', Icons.wb_sunny_outlined),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          itemCount: medications.length,
-          itemBuilder: (context, index) {
-            return _buildMedicationItem(
-                medications[index]
-            );
-          },
-        ),
-      ],
-    );
+    return medications.isEmpty
+        ? SizedBox()
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader(
+                  'Morning - ${date.day.ordinal()} ${getMonthName(date.month)}',
+                  Icons.wb_sunny_outlined),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: medications.length,
+                itemBuilder: (context, index) {
+                  return _buildMedicationItem(medications[index]);
+                },
+              ),
+            ],
+          );
   }
 
   Widget _buildEveningSection() {
     final date = selectedDate;
     final List<IntakeLog> medications = medList.forEvening();
 
-    return medications.isEmpty ? SizedBox() : Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader('Evening - ${date.day.ordinal()} ${getMonthName(date.month)}', Icons.nights_stay_outlined),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          itemCount: medications.length,
-          itemBuilder: (context, index) {
-            return _buildMedicationItem(
-                medications[index]
-            );
-          },
-        ),
-      ],
-    );
+    return medications.isEmpty
+        ? SizedBox()
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader(
+                  'Evening - ${date.day.ordinal()} ${getMonthName(date.month)}',
+                  Icons.nights_stay_outlined),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: medications.length,
+                itemBuilder: (context, index) {
+                  return _buildMedicationItem(medications[index]);
+                },
+              ),
+            ],
+          );
   }
 
   Padding _buildSectionHeader(String title, IconData icon) {
@@ -686,10 +706,12 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
 
   InkWell _buildMedicationItem(IntakeLog medicineLog) {
     final bool isTaken = medicineLog.isTaken;
+    final bool isSkipped = medicineLog.isSkipped;
     final medication = medicineLog.treatment;
     final String name = medication.medicine.name;
     String type = medication.medicine.type.toLowerCase();
-    final String dosage = '${medication.medicine.specs.dosage} ${medication.medicine.specs.unit}';
+    final String dosage =
+        '${medication.medicine.specs.dosage} ${medication.medicine.specs.unit}';
     final String time = medication.formattedTimeOfDay();
     final String color = medication.medicine.color;
 
@@ -707,10 +729,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: futureBuildSvg(type, color)
-                ),
+                    width: 40, height: 40, child: futureBuildSvg(type, color)),
                 if (isTaken)
                   Positioned(
                     right: 0,
@@ -721,7 +740,21 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.check_circle, color: Colors.green, size: 14),
+                      child: Icon(Icons.check_circle,
+                          color: Colors.green, size: 14),
+                    ),
+                  ),
+                if (isSkipped)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: EdgeInsets.all(0.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.cancel, color: Colors.red, size: 14),
                     ),
                   ),
               ],
@@ -736,7 +769,10 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      decoration: isTaken ? TextDecoration.lineThrough : null,
+                      decoration: (isTaken || isSkipped)
+                          ? TextDecoration.lineThrough
+                          : null,
+                      color: isSkipped ? Colors.red[600] : null,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -808,7 +844,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                   text: 'New treatment',
                   onTap: () {
                     Navigator.of(context).pop(); // Close the dialog
-                    context.push('/new_treatment'); // Navigate to new treatment screen
+                    context.push(
+                        '/new_treatment'); // Navigate to new treatment screen
                   },
                 ),
                 SizedBox(height: 10),
@@ -817,7 +854,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                   text: 'One-time take',
                   onTap: () {
                     Navigator.of(context).pop(); // Close the dialog
-                    context.push('/new_treatment'); // Navigate to new treatment screen
+                    context.push(
+                        '/new_treatment'); // Navigate to new treatment screen
                   },
                 ),
                 SizedBox(height: 20),
@@ -875,7 +913,11 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   void _showMedicationDetails(IntakeLog medicineLog) {
     final medication = medicineLog.treatment;
     final String name = medication.medicine.name;
-    final String dosage = '${medication.medicine.specs.dosage} ${medication.medicine.specs.unit}';
+    final String dosage =
+        '${medication.medicine.specs.dosage} ${medication.medicine.specs.unit}';
+    final bool isTaken = medicineLog.isTaken;
+    final bool isSkipped = medicineLog.isSkipped;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -898,72 +940,153 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                   ),
                   IconButton(
                     icon: Icon(Icons.edit, color: Colors.grey),
-                    onPressed: () => context.push('/edit_treatment', extra: medication),
+                    onPressed: () =>
+                        context.push('/edit_treatment', extra: medication),
                   ),
                 ],
               ),
               SizedBox(height: 20),
-              _buildInfoItem('${medication.medicine.color.capitalize()} ${medication.medicine.type}'),
-              _buildInfoItem(medication.treatmentPlan.mealOption.isNotEmpty 
-                ? medication.treatmentPlan.mealOption 
-                : 'Take as directed'),
-              _buildInfoItem(medication.treatmentPlan.instructions.isNotEmpty 
-                ? medication.treatmentPlan.instructions 
-                : 'Try to take it at the same time each day'),
+              _buildInfoItem(
+                  '${medication.medicine.color.capitalize()} ${medication.medicine.type}'),
+              _buildInfoItem(medication.treatmentPlan.mealOption.isNotEmpty
+                  ? medication.treatmentPlan.mealOption
+                  : 'Take as directed'),
+              _buildInfoItem(medication.treatmentPlan.instructions.isNotEmpty
+                  ? medication.treatmentPlan.instructions
+                  : 'Try to take it at the same time each day'),
               SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () {
-                        // Handle skip action
-                        Navigator.pop(context);
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppTokens.stateError,
-                        backgroundColor: AppTokens.buttonSecondaryBg,
-                      ),
-                      child: const Text('Skip for today'),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        navigator.pop();
 
-                        // Get the pill intake notifier and use the async version of pillTaken
-                        final pillIntakeNotifier = ref.read(pillIntakeProvider.notifier);
-                        await pillIntakeNotifier.pillTaken(medicineLog, selectedDate);
-                        
-                        if (mounted && context.mounted) {
-                          _showPillTakenDialog(context);
-                          setState(() {
-                            // Log for debugging
-                            devPrint('Pill taken: ${medicineLog.isTaken}');
-                          });
-                        }
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppTokens.textPrimary,
-                        backgroundColor: AppTokens.buttonPrimaryBg,
-                      ),
-                      child: const Text('Take pill'),
+              // Show status if pill is taken or skipped, otherwise show action buttons
+              if (isTaken || isSkipped) ...[
+                // Status display
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isTaken ? Colors.green[50] : Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isTaken ? Colors.green[200]! : Colors.red[200]!,
+                      width: 1,
                     ),
                   ),
-                ],
-              ),
-              SizedBox(height: 10),
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    // Handle postpone action
-                    Navigator.pop(context);
-                  },
-                  child: Text('Postpone', style: TextStyle(color: Colors.grey)),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isTaken ? Icons.check_circle : Icons.cancel,
+                        color: isTaken ? Colors.green : Colors.red,
+                        size: 24,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          isTaken ? 'Pill taken!' : 'Pill skipped!',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                isTaken ? Colors.green[700] : Colors.red[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                SizedBox(height: 16),
+                // Cancel action button
+                Button.secondary(
+                  onPressed: () async {
+                    final navigator = Navigator.of(context);
+                    navigator.pop();
+
+                    // Reset to neutral state
+                    final pillIntakeNotifier =
+                        ref.read(pillIntakeProvider.notifier);
+                    await pillIntakeNotifier.cancelPillAction(
+                        medicineLog, selectedDate);
+
+                    if (mounted) {
+                      setState(() {
+                        devPrint(
+                            'Action cancelled: taken=${medicineLog.isTaken}, skipped=${medicineLog.isSkipped}');
+                      });
+                    }
+                  },
+                  text: 'Cancel action',
+                  size: ButtonSize.small,
+                  borderRadius: 50,
+                ),
+              ] else ...[
+                // Action buttons for untaken pills
+                Row(
+                  children: [
+                    Expanded(
+                      child: Button.destructive(
+                        onPressed: () async {
+                          final navigator = Navigator.of(context);
+                          navigator.pop();
+
+                          // Get the pill intake notifier and use the async version of pillSkipped
+                          final pillIntakeNotifier =
+                              ref.read(pillIntakeProvider.notifier);
+                          await pillIntakeNotifier.pillSkipped(
+                              medicineLog, selectedDate);
+
+                          if (mounted && context.mounted) {
+                            _showPillSkippedDialog(context);
+                            setState(() {
+                              // Log for debugging
+                              devPrint(
+                                  'Pill skipped: ${medicineLog.isSkipped}');
+                            });
+                          }
+                        },
+                        text: 'Skip for today',
+                        size: ButtonSize.small,
+                        borderRadius:
+                            50, // Full radius for pill-like appearance
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Button.primary(
+                        onPressed: () async {
+                          final navigator = Navigator.of(context);
+                          navigator.pop();
+
+                          // Get the pill intake notifier and use the async version of pillTaken
+                          final pillIntakeNotifier =
+                              ref.read(pillIntakeProvider.notifier);
+                          await pillIntakeNotifier.pillTaken(
+                              medicineLog, selectedDate);
+
+                          if (mounted && context.mounted) {
+                            _showPillTakenDialog(context);
+                            setState(() {
+                              // Log for debugging
+                              devPrint('Pill taken: ${medicineLog.isTaken}');
+                            });
+                          }
+                        },
+                        text: 'Take pill',
+                        size: ButtonSize.small,
+                        borderRadius: 50, // Full radius to match skip button
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 10),
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      // Handle postpone action
+                      Navigator.pop(context);
+                    },
+                    child:
+                        Text('Postpone', style: TextStyle(color: Colors.grey)),
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -992,6 +1115,58 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
               SizedBox(height: 20),
               Text(
                 pillLogError ?? 'Pill taken!',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 20),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                style: TextButton.styleFrom(
+                  backgroundColor: AppTokens.buttonPrimaryBg,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  minimumSize: Size(double.infinity, 50),
+                ),
+                child: Text(
+                  'Close',
+                  style: TextStyle(
+                    color: AppTokens.textPrimary,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPillSkippedDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.cancel,
+                color: Colors.red,
+                size: 60,
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Pill skipped!',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -1077,7 +1252,8 @@ class EditMoodDialogState extends State<EditMoodDialog> {
   @override
   Widget build(BuildContext context) {
     // Debug log to verify the edit dialog is being called with correct values
-    devPrint('EditMoodDialog: Editing mood with initialMood=${widget.initialMood}, initialDescription="${widget.initialDescription}"');
+    devPrint(
+        'EditMoodDialog: Editing mood with initialMood=${widget.initialMood}, initialDescription="${widget.initialDescription}"');
 
     // Instead of using a custom edit dialog, we reuse DailyMoodPrompt
     // but pass in the initial values and date
@@ -1110,6 +1286,7 @@ String getMoodEmoji(int mood) {
       return '😐'; // Default to neutral
   }
 }
+
 String getMoodLabel(int mood) {
   switch (mood) {
     case 0:

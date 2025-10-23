@@ -1,13 +1,37 @@
 // ignore_for_file: prefer_const_constructors, avoid_print
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 import 'package:pinkrain/core/models/medicine_model.dart';
 import 'package:pinkrain/features/treatment/data/treatment.dart';
 import 'package:pinkrain/features/treatment/domain/treatment_manager.dart';
 import 'package:pinkrain/features/treatment/presentation/edit_treatment.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory tempDir;
+
+  setUpAll(() async {
+    // Create a temporary directory for Hive
+    tempDir = await Directory.systemTemp.createTemp('test_hive_');
+    Hive.init(tempDir.path);
+  });
+
+  tearDownAll(() async {
+    // Clean up Hive and temp directory
+    await Hive.close();
+    await Future.delayed(Duration(milliseconds: 200));
+    try {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    } catch (e) {
+      // Ignore errors during cleanup
+    }
+  });
+
   // Helper function to create a test treatment
   Treatment createTestTreatment({
     String? id,
@@ -131,16 +155,23 @@ void main() {
         (WidgetTester tester) async {
       // Arrange: Create a test treatment
       final treatment = createTestTreatment();
+      
+      // Set a larger screen size to avoid off-screen elements
+      await tester.binding.setSurfaceSize(const Size(1080, 1920));
 
       // Act: Build the widget
       await tester.pumpWidget(buildEditTreatmentScreen(treatment));
+
+      // Scroll to make sure the element is visible
+      await tester.ensureVisible(find.text('Before meal'));
+      await tester.pumpAndSettle();
 
       // Find the meal preference options
       final beforeMealOption = find.text('Before meal');
       expect(beforeMealOption, findsOneWidget);
 
       // Tap on the before meal option
-      await tester.tap(beforeMealOption);
+      await tester.tap(beforeMealOption, warnIfMissed: false);
       await tester.pump();
 
       // Verify the meal preference was selected (this is a bit tricky to verify in a widget test)
@@ -175,6 +206,9 @@ void main() {
         (WidgetTester tester) async {
       // Arrange: Create a test treatment
       final treatment = createTestTreatment();
+      
+      // Set a larger screen size to avoid off-screen elements
+      await tester.binding.setSurfaceSize(const Size(1080, 1920));
 
       // Act: Build the widget
       await tester.pumpWidget(buildEditTreatmentScreen(treatment));
@@ -187,12 +221,16 @@ void main() {
       final dosageField = find.widgetWithText(TextField, '10.0');
       await tester.enterText(dosageField, '20.0');
 
+      // Scroll to make sure the save button is visible
+      await tester.ensureVisible(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
       // Find the save button
       final saveButton = find.text('Save Changes');
       expect(saveButton, findsOneWidget);
 
       // Tap the save button
-      await tester.tap(saveButton);
+      await tester.tap(saveButton, warnIfMissed: false);
       await tester.pumpAndSettle();
 
       // Verify that the save was successful

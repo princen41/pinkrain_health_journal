@@ -1,4 +1,3 @@
-/// Common data structures and types for wellness charts
 import 'package:flutter/material.dart';
 
 /// Data point for mood trends over time
@@ -143,7 +142,7 @@ class WellnessChartConfig {
 class MoodScale {
   static const double minMood = 1.0;
   static const double maxMood = 5.0;
-  
+
   static const Map<int, String> moodLabels = {
     1: 'Very Bad',
     2: 'Bad',
