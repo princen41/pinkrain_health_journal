@@ -1,4 +1,3 @@
-/// Reusable theme configurations for wellness charts with Cristalyse
 import 'package:flutter/material.dart';
 import 'package:cristalyse/cristalyse.dart';
 
@@ -17,7 +16,13 @@ class WellnessChartThemes {
       backgroundColor: Colors.white,
       gridColor: Colors.grey[200]!,
       primaryColor: primaryBlue,
-      colorPalette: [primaryBlue, secondaryPurple, accentGreen, warningOrange, dangerRed],
+      colorPalette: [
+        primaryBlue,
+        secondaryPurple,
+        accentGreen,
+        warningOrange,
+        dangerRed
+      ],
       axisTextStyle: TextStyle(color: Colors.grey[600]!, fontSize: 12),
       padding: const EdgeInsets.all(16),
       plotBackgroundColor: Colors.white,
@@ -57,7 +62,12 @@ class WellnessChartThemes {
       backgroundColor: Colors.white,
       gridColor: Colors.grey[200]!,
       primaryColor: primaryBlue,
-      colorPalette: [primaryBlue, Color(0xFF9B59B6), secondaryPurple, neutralGray],
+      colorPalette: [
+        primaryBlue,
+        Color(0xFF9B59B6),
+        secondaryPurple,
+        neutralGray
+      ],
       axisTextStyle: TextStyle(color: Colors.grey[600]!, fontSize: 12),
       padding: const EdgeInsets.all(16),
       plotBackgroundColor: Colors.white,
@@ -77,51 +87,56 @@ class WellnessChartThemes {
       backgroundColor: Color(0xFF2C3E50),
       gridColor: Color(0xFF34495E),
       primaryColor: Color(0xFF5DADE2),
-      colorPalette: [Color(0xFF5DADE2), Color(0xFFAB7BE8), accentGreen, warningOrange],
+      colorPalette: [
+        Color(0xFF5DADE2),
+        Color(0xFFAB7BE8),
+        accentGreen,
+        warningOrange
+      ],
       axisTextStyle: TextStyle(color: Colors.grey[300]!, fontSize: 12),
     );
   }
 
   /// Get gradient colors for positive correlations
   static List<Color> get positiveGradient => [
-    accentGreen.withValues(alpha: 0.3),
-    accentGreen.withValues(alpha: 0.8),
-  ];
+        accentGreen.withValues(alpha: 0.3),
+        accentGreen.withValues(alpha: 0.8),
+      ];
 
   /// Get gradient colors for negative correlations
   static List<Color> get negativeGradient => [
-    dangerRed.withValues(alpha: 0.3),
-    dangerRed.withValues(alpha: 0.8),
-  ];
+        dangerRed.withValues(alpha: 0.3),
+        dangerRed.withValues(alpha: 0.8),
+      ];
 
   /// Get gradient colors for mood trends
   static List<Color> get moodGradient => [
-    primaryBlue.withValues(alpha: 0.3),
-    primaryBlue.withValues(alpha: 0.8),
-  ];
+        primaryBlue.withValues(alpha: 0.3),
+        primaryBlue.withValues(alpha: 0.8),
+      ];
 
   /// Get gradient colors for prediction confidence intervals
   static List<Color> get confidenceGradient => [
-    secondaryPurple.withValues(alpha: 0.1),
-    secondaryPurple.withValues(alpha: 0.3),
-  ];
+        secondaryPurple.withValues(alpha: 0.1),
+        secondaryPurple.withValues(alpha: 0.3),
+      ];
 }
 
 /// Extension to provide commonly used styling patterns
 extension ChartStyling on WellnessChartThemes {
   /// Standard container decoration for chart widgets
   static BoxDecoration get chartContainer => BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(12),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.grey.withValues(alpha: 0.1),
-        spreadRadius: 1,
-        blurRadius: 4,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      );
 
   /// Standard padding for chart containers
   static const EdgeInsets chartPadding = EdgeInsets.all(16);
@@ -140,23 +155,23 @@ extension ChartStyling on WellnessChartThemes {
 
   /// Standard text styles for chart descriptions
   static TextStyle get chartDescription => TextStyle(
-    color: Colors.grey[600],
-    fontSize: 12,
-    height: 1.3,
-  );
+        color: Colors.grey[600],
+        fontSize: 12,
+        height: 1.3,
+      );
 
   /// Standard text styles for chart legends
   static TextStyle get legendText => TextStyle(
-    color: Colors.grey[600],
-    fontSize: 12,
-  );
+        color: Colors.grey[600],
+        fontSize: 12,
+      );
 
   /// Standard text styles for small labels
   static TextStyle get smallLabel => TextStyle(
-    color: Colors.grey[600],
-    fontSize: 10,
-    fontWeight: FontWeight.w500,
-  );
+        color: Colors.grey[600],
+        fontSize: 10,
+        fontWeight: FontWeight.w500,
+      );
 }
 
 /// Predefined color schemes for different chart types
@@ -164,7 +179,7 @@ class WellnessColorSchemes {
   /// Color scheme for mood levels (1-5 scale)
   static const List<Color> moodColors = [
     Color(0xFFE74C3C), // Very Bad - Red
-    Color(0xFFE67E22), // Bad - Orange  
+    Color(0xFFE67E22), // Bad - Orange
     Color(0xFFF39C12), // Neutral - Yellow
     Color(0xFF27AE60), // Good - Green
     Color(0xFF2ECC71), // Great - Bright Green

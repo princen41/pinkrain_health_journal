@@ -1,4 +1,3 @@
-/// Main chart factory for creating DRY, reusable wellness charts
 import 'package:flutter/material.dart';
 import 'package:cristalyse/cristalyse.dart';
 import 'chart_data_models.dart';
@@ -21,10 +20,11 @@ class WellnessChartFactory {
     }).toList();
 
     // Create the chart configuration
-    final chartConfig = config ?? WellnessChartConfig(
-      title: 'Mood Trends',
-      description: _getMoodTrendDescription(timeRange, selectedDate),
-    );
+    final chartConfig = config ??
+        WellnessChartConfig(
+          title: 'Mood Trends',
+          description: _getMoodTrendDescription(timeRange, selectedDate),
+        );
 
     if (chartData.isEmpty) {
       return _buildEmptyState('No mood data available for this period');
@@ -72,10 +72,11 @@ class WellnessChartFactory {
     }).toList();
 
     // Create the chart configuration
-    final chartConfig = config ?? const WellnessChartConfig(
-      title: 'Correlation Analysis',
-      description: 'Discover relationships between your wellness factors',
-    );
+    final chartConfig = config ??
+        const WellnessChartConfig(
+          title: 'Correlation Analysis',
+          description: 'Discover relationships between your wellness factors',
+        );
 
     if (chartData.isEmpty) {
       return _buildEmptyState('No correlation data available');
@@ -93,12 +94,14 @@ class WellnessChartFactory {
               borderRadius: BorderRadius.circular(6.0),
             )
             .scaleXOrdinal(
-              labels: (value) => _getCorrelationFactorLabel(value.toInt(), correlationData),
+              labels: (value) =>
+                  _getCorrelationFactorLabel(value.toInt(), correlationData),
             )
             .scaleYContinuous(
               min: -1.0,
               max: 1.0,
-              labels: (value) => InteractionHelpers.formatCorrelationLabel(value.toDouble()),
+              labels: (value) =>
+                  InteractionHelpers.formatCorrelationLabel(value.toDouble()),
             )
             .theme(WellnessChartThemes.correlation)
             .animate(duration: const Duration(milliseconds: 600))
@@ -133,11 +136,13 @@ class WellnessChartFactory {
     }).toList();
 
     // Create the chart configuration
-    final chartConfig = config ?? const WellnessChartConfig(
-      title: 'Mood Forecast',
-      description: 'Forecasting your mood for the next 7 days based on historical patterns',
-      secondaryColor: Color(0xFF9B59B6),
-    );
+    final chartConfig = config ??
+        const WellnessChartConfig(
+          title: 'Mood Forecast',
+          description:
+              'Forecasting your mood for the next 7 days based on historical patterns',
+          secondaryColor: Color(0xFF9B59B6),
+        );
 
     if (predictionData.isEmpty) {
       return _buildEmptyState('No prediction data available');
@@ -145,7 +150,7 @@ class WellnessChartFactory {
 
     // For now, create a simplified prediction chart with just the basic line
     final allData = [...historicalData, ...futureData];
-    
+
     return _buildChartContainer(
       config: chartConfig,
       child: Column(
@@ -202,7 +207,7 @@ class WellnessChartFactory {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                color: config.secondaryColor.withValues(alpha: 0.1),
+                  color: config.secondaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -253,7 +258,8 @@ class WellnessChartFactory {
   }
 
   /// Get mood trend description based on time range and date
-  static String _getMoodTrendDescription(ChartTimeRange timeRange, DateTime selectedDate) {
+  static String _getMoodTrendDescription(
+      ChartTimeRange timeRange, DateTime selectedDate) {
     switch (timeRange) {
       case ChartTimeRange.day:
         return 'Your mood for ${_formatDate(selectedDate)}';
@@ -269,10 +275,14 @@ class WellnessChartFactory {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    
-    if (date.year == today.year && date.month == today.month && date.day == today.day) {
+
+    if (date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day) {
       return 'today';
-    } else if (date.year == yesterday.year && date.month == yesterday.month && date.day == yesterday.day) {
+    } else if (date.year == yesterday.year &&
+        date.month == yesterday.month &&
+        date.day == yesterday.day) {
       return 'yesterday';
     } else {
       return '${date.day}/${date.month}/${date.year}';
@@ -282,14 +292,25 @@ class WellnessChartFactory {
   /// Format month for display
   static String _formatMonth(DateTime date) {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
     ];
     return '${months[date.month - 1]} ${date.year}';
   }
 
   /// Get short correlation factor label for display
-  static String _getCorrelationFactorLabel(int index, List<CorrelationDataPoint> data) {
+  static String _getCorrelationFactorLabel(
+      int index, List<CorrelationDataPoint> data) {
     if (index >= 0 && index < data.length) {
       final factor = data[index].factor;
       // Abbreviate long factor names
@@ -329,7 +350,8 @@ class WellnessChartFactory {
               width: 12,
               height: 3,
               child: CustomPaint(
-                painter: _DashedLinePainter(color: WellnessChartThemes.secondaryPurple),
+                painter: _DashedLinePainter(
+                    color: WellnessChartThemes.secondaryPurple),
               ),
             ),
             const SizedBox(width: 8),
@@ -346,7 +368,8 @@ class WellnessChartFactory {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: WellnessChartThemes.secondaryPurple.withValues(alpha: 0.2),
+                color:
+                    WellnessChartThemes.secondaryPurple.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -365,20 +388,20 @@ class WellnessChartFactory {
 /// Custom painter for dashed lines in legends
 class _DashedLinePainter extends CustomPainter {
   final Color color;
-  
+
   _DashedLinePainter({required this.color});
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
-    
+
     const dashWidth = 5;
     const dashSpace = 2;
     double startX = 0;
-    
+
     while (startX < size.width) {
       canvas.drawLine(
         Offset(startX, size.height / 2),
@@ -388,7 +411,7 @@ class _DashedLinePainter extends CustomPainter {
       startX += dashWidth + dashSpace;
     }
   }
-  
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
