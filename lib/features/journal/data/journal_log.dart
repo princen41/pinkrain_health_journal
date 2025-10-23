@@ -109,6 +109,12 @@ class IntakeLog {
         }
       }
 
+      // Enforce exclusivity: isTaken and isSkipped cannot both be true
+      if (isTaken && isSkipped) {
+        // If both are true, prioritize isTaken and set isSkipped to false
+        isSkipped = false;
+      }
+
       DateTime startDate = DateTime.now();
       try {
         if (startDateValue is String) {
@@ -190,15 +196,15 @@ class JournalLog {
   /// Load medication logs from Hive storage
   Future<void> _loadMedicationLogs(DateTime date) async {
     date = date.normalize();
+    
+    // Load treatments once at the beginning to avoid redundant I/O
+    final treatmentManager = TreatmentManager();
+    await treatmentManager.loadTreatments(); // Ensure latest treatments are loaded
+    final allTreatments = treatmentManager.treatments;
+    
     try {
       // First, try to load from storage
       final logs = await HiveService.getMedicationLogsForDate(date);
-
-      // CRITICAL FIX: Always check for up-to-date treatment data
-      final treatmentManager = TreatmentManager();
-      await treatmentManager
-          .loadTreatments(); // Ensure latest treatments are loaded
-      final latestTreatments = treatmentManager.treatments;
 
       if (logs != null && logs.isNotEmpty) {
         // Convert the logs back to IntakeLog objects with safer type handling
@@ -221,7 +227,7 @@ class JournalLog {
 
                 // CRITICAL FIX: Update with the latest treatment data if it exists
                 final treatmentId = intakeLog.treatment.id;
-                final matchingTreatment = latestTreatments.firstWhere(
+                final matchingTreatment = allTreatments.firstWhere(
                   (t) => t.id == treatmentId,
                   orElse: () => intakeLog.treatment,
                 );
@@ -251,13 +257,7 @@ class JournalLog {
 
     // If we don't have stored logs or there was an error, create logs for treatments active on this date
     if (!medicationLogs.containsKey(date) || medicationLogs[date]!.isEmpty) {
-      // Instead of using sample data, use treatments that are active on this specific date
-      final treatmentManager = TreatmentManager();
-      await treatmentManager
-          .loadTreatments(); // Ensure latest treatments are loaded
-      final allTreatments = treatmentManager.treatments;
-
-      // Filter treatments that are active on the specific date
+      // Filter treatments that are active on the specific date using the already loaded treatments
       final activeTreatments = allTreatments.where((treatment) {
         // Use the new shouldTakeOnDate method that respects selected days
         return treatment.treatmentPlan.shouldTakeOnDate(date);
@@ -442,8 +442,38 @@ class JournalLog {
       // For each existing log, try to find the updated treatment
       for (final logMap in existingLogs) {
         final medicineName = logMap['medicine_name'] as String?;
-        final isTaken = logMap['is_taken'] as bool? ?? false;
-        final isSkipped = logMap['is_skipped'] as bool? ?? false;
+        
+        // Convert taken status with safe default (matching fromMap logic)
+        final isTakenValue = logMap['is_taken'];
+        bool isTaken = false;
+        if (isTakenValue != null) {
+          if (isTakenValue is bool) {
+            isTaken = isTakenValue;
+          } else if (isTakenValue is int) {
+            isTaken = isTakenValue != 0;
+          } else if (isTakenValue is String) {
+            isTaken = isTakenValue.toLowerCase() == 'true' || isTakenValue == '1';
+          }
+        }
+        
+        // Convert skipped status with safe default (matching fromMap logic)
+        final isSkippedValue = logMap['is_skipped'];
+        bool isSkipped = false;
+        if (isSkippedValue != null) {
+          if (isSkippedValue is bool) {
+            isSkipped = isSkippedValue;
+          } else if (isSkippedValue is int) {
+            isSkipped = isSkippedValue != 0;
+          } else if (isSkippedValue is String) {
+            isSkipped = isSkippedValue.toLowerCase() == 'true' || isSkippedValue == '1';
+          }
+        }
+        
+        // Enforce exclusivity: isTaken and isSkipped cannot both be true
+        if (isTaken && isSkipped) {
+          isSkipped = false;
+        }
+        
         String treatmentId = logMap['treatment_id'] as String? ?? '';
 
         devPrint(

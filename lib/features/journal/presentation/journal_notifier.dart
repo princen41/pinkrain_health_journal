@@ -43,6 +43,9 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
     // Get the normalized date
     final normalizedDate = date.normalize();
 
+    // Update state with a new list to trigger Riverpod listeners
+    state = [...state];
+
     // Save the updated logs to persistent storage
     await _journalLog.saveMedicationLogs(normalizedDate);
   }
@@ -54,6 +57,9 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
     // Get the normalized date
     final normalizedDate = date.normalize();
 
+    // Update state with a new list to trigger Riverpod listeners
+    state = [...state];
+
     // Save the updated logs to persistent storage
     await _journalLog.saveMedicationLogs(normalizedDate);
   }
@@ -64,6 +70,9 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
 
     // Get the normalized date
     final normalizedDate = date.normalize();
+
+    // Update state with a new list to trigger Riverpod listeners
+    state = [...state];
 
     // Save the updated logs to persistent storage
     await _journalLog.saveMedicationLogs(normalizedDate);
@@ -92,7 +101,7 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
     _journalLog.medicationLogs.forEach((date, intakeLogs) {
       if (intakeLogs.isNotEmpty) {
         final String dayOfWeek = DateFormat('EEEE').format(date);
-        final int missedDoses = intakeLogs.where((log) => !log.isTaken).length;
+        final int missedDoses = intakeLogs.where((log) => !log.isTaken && !log.isSkipped).length;
         if (missedDoses > 0) {
           missedDoseDays.update(dayOfWeek, (count) => count + missedDoses,
               ifAbsent: () => missedDoses);

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
@@ -147,13 +146,6 @@ class NotificationService {
     } else {
       devPrint(' Empty payload in notification response');
     }
-  }
-  
-  /// For testing only - allows tests to simulate notification responses
-  Future<void> testHandleNotificationResponse(NotificationResponse response) async {
-    // Log that this is a test method
-    devPrint('TEST: Simulating notification response');
-    _handleNotificationResponse(response);
   }
   
   /// Handle the snooze action
@@ -364,7 +356,7 @@ class NotificationService {
       channelDescription: 'Reminders for taking your pills',
       importance: Importance.max,
       priority: Priority.high,
-      sound: RawResourceAndroidNotificationSound(selectedSoundPath ?? 'default'),
+      sound: RawResourceAndroidNotificationSound(selectedSoundPath ?? 'pill_alarm'),
       // Include action buttons for the notification
       actions: includeSnoozeAction ? <AndroidNotificationAction>[
         const AndroidNotificationAction(
@@ -432,7 +424,7 @@ class NotificationService {
       channelDescription: 'Reminders for taking your pills',
       importance: Importance.max,
       priority: Priority.high,
-      sound: RawResourceAndroidNotificationSound(selectedSoundPath ?? 'default'),
+      sound: RawResourceAndroidNotificationSound(selectedSoundPath ?? 'pill_alarm'),
       additionalFlags: Int32List.fromList(<int>[4]), // Insistent flag for Android
       // Add actions for the notification
       actions: includeSnoozeAction ? <AndroidNotificationAction>[
@@ -556,120 +548,5 @@ class NotificationService {
       return await androidImplementation.areNotificationsEnabled() ?? false;
     }
     return false;
-  }
-}
-
-// Usage example
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final notificationService = NotificationService();
-  await notificationService.initialize();
-
-  runApp(MyApp(notificationService: notificationService));
-}
-
-class MyApp extends StatelessWidget {
-  final NotificationService notificationService;
-
-  const MyApp({super.key, required this.notificationService});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: NotificationTestScreen(notificationService: notificationService),
-    );
-  }
-}
-
-class NotificationTestScreen extends StatefulWidget {
-  final NotificationService notificationService;
-
-  const NotificationTestScreen({super.key, required this.notificationService});
-
-  @override
-  State<NotificationTestScreen> createState() => _NotificationTestScreenState();
-}
-
-class _NotificationTestScreenState extends State<NotificationTestScreen> {
-  String _status = 'Tap a button to test notifications';
-
-  @override
-  void initState() {
-    super.initState();
-    _checkNotificationStatus();
-  }
-
-  Future<void> _checkNotificationStatus() async {
-    final enabled = await widget.notificationService.areNotificationsEnabled();
-    setState(() {
-      _status = enabled
-          ? 'Notifications are enabled'
-          : 'Notifications are disabled. Please enable them in settings.';
-    });
-  }
-
-  void _updateStatus(String message) {
-    setState(() {
-      _status = message;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pill Reminder Demo'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                _status,
-                style: const TextStyle(fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                widget.notificationService.showImmediateNotification();
-                _updateStatus(
-                    'Immediate notification sent! Check your notification tray.');
-              },
-              child: const Text('Test Immediate Notification'),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                final now = DateTime.now();
-                final scheduledTime = now.add(const Duration(seconds: 5));
-                widget.notificationService.schedulePillReminder(
-                  1,
-                  'Pill Time!',
-                  'Take your morning pill now.',
-                  scheduledTime,
-                );
-                _updateStatus(
-                    'Scheduled notification for 5 seconds from now: ${scheduledTime.toString()}');
-              },
-              child: const Text('Set 5-Second Reminder'),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _checkNotificationStatus,
-              child: const Text('Check Notification Status'),
-            ),
-            const SizedBox(height: 40),
-            const Text(
-              'Note: On emulators, you may need to pull down the notification shade to see notifications.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

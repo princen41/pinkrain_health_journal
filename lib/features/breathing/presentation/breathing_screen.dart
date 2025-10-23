@@ -9,12 +9,14 @@ import 'package:go_router/go_router.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
 import 'package:pretty_animated_text/pretty_animated_text.dart';
 
-final breathingExerciseProvider = StateNotifierProvider<BreathingExerciseNotifier, BreathingState>(
-      (ref) => BreathingExerciseNotifier(),
+final breathingExerciseProvider =
+    StateNotifierProvider<BreathingExerciseNotifier, BreathingState>(
+  (ref) => BreathingExerciseNotifier(),
 );
 
 class BreathingState {
   final BreathingStage stage;
+  final BreathingStage? previousStage;
   final int secondsRemaining;
   final int totalCycles;
   final int currentCycle;
@@ -22,6 +24,7 @@ class BreathingState {
 
   BreathingState({
     required this.stage,
+    this.previousStage,
     required this.secondsRemaining,
     required this.totalCycles,
     required this.currentCycle,
@@ -30,6 +33,7 @@ class BreathingState {
 
   BreathingState copyWith({
     BreathingStage? stage,
+    BreathingStage? previousStage,
     int? secondsRemaining,
     int? totalCycles,
     int? currentCycle,
@@ -37,6 +41,7 @@ class BreathingState {
   }) {
     return BreathingState(
       stage: stage ?? this.stage,
+      previousStage: previousStage ?? this.previousStage,
       secondsRemaining: secondsRemaining ?? this.secondsRemaining,
       totalCycles: totalCycles ?? this.totalCycles,
       currentCycle: currentCycle ?? this.currentCycle,
@@ -50,18 +55,21 @@ enum BreathingStage { inhale, hold, exhale, rest, initial, completed }
 class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
   Timer? _timer;
 
-  BreathingExerciseNotifier() : super(BreathingState(
-    stage: BreathingStage.initial,
-    secondsRemaining: 0,
-    totalCycles: 4,
-    currentCycle: 0,
-    exerciseType: 'box',
-  ));
+  BreathingExerciseNotifier()
+      : super(BreathingState(
+          stage: BreathingStage.initial,
+          previousStage: null,
+          secondsRemaining: 0,
+          totalCycles: 4,
+          currentCycle: 0,
+          exerciseType: 'box',
+        ));
 
   void startExercise(String type, int cycles) {
     // Reset state
     state = BreathingState(
       stage: BreathingStage.inhale,
+      previousStage: null,
       secondsRemaining: _getDuration(type, BreathingStage.inhale),
       totalCycles: cycles,
       currentCycle: 1,
@@ -86,6 +94,7 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
     _timer?.cancel();
     state = BreathingState(
       stage: BreathingStage.initial,
+      previousStage: null,
       secondsRemaining: 0,
       totalCycles: 4,
       currentCycle: 0,
@@ -109,22 +118,34 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
 
     switch (state.stage) {
       case BreathingStage.inhale:
-        nextStage = state.exerciseType == 'box' ? BreathingStage.hold : BreathingStage.exhale;
+        // Both exercises: inhale -> hold
+        nextStage = BreathingStage.hold;
         break;
       case BreathingStage.hold:
-        nextStage = state.exerciseType == 'box'
-            ? (state.stage == BreathingStage.inhale ? BreathingStage.exhale : BreathingStage.rest)
-            : BreathingStage.exhale;
+        // Decide next stage based on what preceded the hold
+        if (state.previousStage == BreathingStage.inhale) {
+          // Hold after inhale -> exhale
+          nextStage = BreathingStage.exhale;
+        } else if (state.previousStage == BreathingStage.exhale) {
+          // Hold after exhale -> rest (for box) or rest (for 4-7-8)
+          nextStage = BreathingStage.rest;
+        } else {
+          // Fallback: assume hold after inhale
+          nextStage = BreathingStage.exhale;
+        }
         break;
       case BreathingStage.exhale:
-        nextStage = state.exerciseType == 'box' ? BreathingStage.hold : BreathingStage.rest;
+        nextStage = state.exerciseType == 'box'
+            ? BreathingStage.hold
+            : BreathingStage.rest;
         break;
       case BreathingStage.rest:
-      // Check if we need to move to the next cycle or complete the exercise
+        // Check if we need to move to the next cycle or complete the exercise
         if (state.currentCycle < state.totalCycles) {
           nextStage = BreathingStage.inhale;
           state = state.copyWith(
             stage: nextStage,
+            previousStage: state.stage,
             secondsRemaining: _getDuration(state.exerciseType, nextStage),
             currentCycle: state.currentCycle + 1,
           );
@@ -134,6 +155,7 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
           _timer?.cancel();
           state = state.copyWith(
             stage: nextStage,
+            previousStage: state.stage,
             secondsRemaining: 0,
           );
           return;
@@ -144,6 +166,7 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
 
     state = state.copyWith(
       stage: nextStage,
+      previousStage: state.stage,
       secondsRemaining: _getDuration(state.exerciseType, nextStage),
     );
   }
@@ -225,7 +248,7 @@ class _ParticlePainter extends CustomPainter {
       final dx = center.dx + cos(angle) * r;
       final dy = center.dy + sin(angle) * r;
       final paint = Paint()
-        ..color = p.color.withValues(alpha:0.2 + 0.6 * animationValue)
+        ..color = p.color.withValues(alpha: 0.2 + 0.6 * animationValue)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
       canvas.drawCircle(Offset(dx, dy), p.size, paint);
     }
@@ -268,7 +291,6 @@ Color _getSecondaryStageColor(BreathingStage stage) {
   }
 }
 
-
 class BreathBreakScreen extends ConsumerStatefulWidget {
   const BreathBreakScreen({super.key});
 
@@ -276,7 +298,8 @@ class BreathBreakScreen extends ConsumerStatefulWidget {
   ConsumerState<BreathBreakScreen> createState() => _BreathBreakScreenState();
 }
 
-class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with SingleTickerProviderStateMixin {
+class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   String selectedExercise = 'box';
   int selectedCycles = 4;
@@ -392,7 +415,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
         if (prev?.stage != next.stage && next.stage != BreathingStage.initial) {
           setState(() {
             _gradientStartAnimation = ColorTween(
-              begin: _gradientStartAnimation.value ?? _stageColors[next.stage]![0],
+              begin:
+                  _gradientStartAnimation.value ?? _stageColors[next.stage]![0],
               end: _stageColors[next.stage]![0],
             ).animate(
               CurvedAnimation(
@@ -402,7 +426,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
             );
 
             _gradientEndAnimation = ColorTween(
-              begin: _gradientEndAnimation.value ?? _stageColors[next.stage]![1],
+              begin:
+                  _gradientEndAnimation.value ?? _stageColors[next.stage]![1],
               end: _stageColors[next.stage]![1],
             ).animate(
               CurvedAnimation(
@@ -414,7 +439,9 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
         }
 
         // Provide haptic and sound feedback on stage transitions
-        if (_lastStage != next.stage && next.stage != BreathingStage.initial && next.stage != BreathingStage.completed) {
+        if (_lastStage != next.stage &&
+            next.stage != BreathingStage.initial &&
+            next.stage != BreathingStage.completed) {
           _provideFeedback(next.stage);
           _lastStage = next.stage;
         }
@@ -456,7 +483,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
         ),
       ),
       extendBodyBehindAppBar: true, // Allow gradient to extend behind AppBar
-      backgroundColor: Colors.transparent, // Make scaffold background transparent
+      backgroundColor:
+          Colors.transparent, // Make scaffold background transparent
       body: Stack(
         children: [
           AnimatedBuilder(
@@ -470,12 +498,25 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      (_gradientStartAnimation.value ?? _stageColors[breathingState.stage]![0]).withValues(alpha:0.95),
-                      (_gradientStartAnimation.value ?? _stageColors[breathingState.stage]![0]).withValues(alpha:0.75),
-                      (_gradientEndAnimation.value ?? _stageColors[breathingState.stage]![1]).withValues(alpha:0.75),
-                      (_gradientEndAnimation.value ?? _stageColors[breathingState.stage]![1]).withValues(alpha:0.95),
+                      (_gradientStartAnimation.value ??
+                              _stageColors[breathingState.stage]![0])
+                          .withValues(alpha: 0.95),
+                      (_gradientStartAnimation.value ??
+                              _stageColors[breathingState.stage]![0])
+                          .withValues(alpha: 0.75),
+                      (_gradientEndAnimation.value ??
+                              _stageColors[breathingState.stage]![1])
+                          .withValues(alpha: 0.75),
+                      (_gradientEndAnimation.value ??
+                              _stageColors[breathingState.stage]![1])
+                          .withValues(alpha: 0.95),
                     ],
-                    stops: const [0.0, 0.10, 0.90, 1.0], // Smooth fade at top and bottom
+                    stops: const [
+                      0.0,
+                      0.10,
+                      0.90,
+                      1.0
+                    ], // Smooth fade at top and bottom
                   ),
                 ),
               );
@@ -493,7 +534,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     if (!isExerciseStarted) _buildExerciseSelector(),
-                    if (isExerciseStarted) _buildExerciseInProgress(breathingState),
+                    if (isExerciseStarted)
+                      _buildExerciseInProgress(breathingState),
                     const SizedBox(height: 30),
                   ],
                 ),
@@ -505,7 +547,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
             alignment: Alignment.bottomCenter,
             child: Padding(
               // Add extra padding to account for the height of the navbar
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 80.0),
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 80.0),
               child: isExerciseStarted
                   ? (breathingState.stage != BreathingStage.completed
                       ? Row(
@@ -531,7 +574,9 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                                   borderRadius: BorderRadius.circular(30),
                                 ),
                               ),
-                              child: Text(_animationController.isAnimating ? 'Pause' : 'Resume'),
+                              child: Text(_animationController.isAnimating
+                                  ? 'Pause'
+                                  : 'Resume'),
                             ),
                             const SizedBox(width: 20),
                             TextButton(
@@ -572,7 +617,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                         setState(() {
                           isExerciseStarted = true;
                         });
-                        notifier.startExercise(selectedExercise, selectedCycles);
+                        notifier.startExercise(
+                            selectedExercise, selectedCycles);
                         if (_enableHaptic) {
                           HapticFeedback.lightImpact();
                         }
@@ -580,12 +626,14 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                       style: TextButton.styleFrom(
                         backgroundColor: AppTokens.buttonPrimaryBg,
                         foregroundColor: AppTokens.textPrimary,
-                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      child: const Text('Start Exercise', style: TextStyle(fontSize: 18)),
+                      child: const Text('Start Exercise',
+                          style: TextStyle(fontSize: 18)),
                     ),
             ),
           ),
@@ -666,11 +714,11 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
   }
 
   Widget _buildExerciseOption(
-      String title,
-      String description,
-      String type,
-      IconData icon,
-      ) {
+    String title,
+    String description,
+    String type,
+    IconData icon,
+  ) {
     final isSelected = selectedExercise == type;
 
     return GestureDetector(
@@ -691,13 +739,13 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
           ),
           boxShadow: isSelected
               ? [
-            BoxShadow(
-              color: Colors.pink[100]!.withAlpha(30),
-              spreadRadius: 1,
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ]
+                  BoxShadow(
+                    color: Colors.pink[100]!.withAlpha(30),
+                    spreadRadius: 1,
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
         child: Row(
@@ -785,7 +833,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
               height: 328,
               child: CircularProgressIndicator(
                 value: (() {
-                  final stageTotal = _getStageDuration(state.exerciseType, state.stage);
+                  final stageTotal =
+                      _getStageDuration(state.exerciseType, state.stage);
                   if (stageTotal == 0) return 0.0;
                   return (stageTotal - state.secondsRemaining) / stageTotal;
                 })(),
@@ -799,7 +848,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
               animation: _animationController,
               builder: (context, child) {
                 final Color primaryColor = _getStageColor(state.stage);
-                final Color secondaryColor = _getSecondaryStageColor(state.stage);
+                final Color secondaryColor =
+                    _getSecondaryStageColor(state.stage);
                 final double orbRadius = 320;
                 return Stack(
                   alignment: Alignment.center,
@@ -814,16 +864,16 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                           center: Alignment(0, -0.2),
                           radius: 0.85,
                           colors: [
-                            Colors.white.withValues(alpha:0.6), // glass base
-                            primaryColor.withValues(alpha:0.15), // pastel tint
-                            Colors.white.withValues(alpha:0.12),
+                            Colors.white.withValues(alpha: 0.6), // glass base
+                            primaryColor.withValues(alpha: 0.15), // pastel tint
+                            Colors.white.withValues(alpha: 0.12),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 0.7, 0.95, 1.0],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: primaryColor.withValues(alpha:0.18),
+                            color: primaryColor.withValues(alpha: 0.18),
                             blurRadius: 32,
                             spreadRadius: 8,
                           ),
@@ -842,7 +892,7 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                             child: BackdropFilter(
                               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                               child: Container(
-                                color: Colors.white.withValues(alpha:0.08),
+                                color: Colors.white.withValues(alpha: 0.08),
                               ),
                             ),
                           ),
@@ -850,7 +900,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                           Positioned.fill(
                             child: IgnorePointer(
                               child: CustomPaint(
-                                painter: _IridescentBorderPainter(primaryColor, secondaryColor),
+                                painter: _IridescentBorderPainter(
+                                    primaryColor, secondaryColor),
                               ),
                             ),
                           ),
@@ -866,14 +917,15 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    Colors.white.withValues(alpha:0.07), // much lower opacity
-                                    Colors.white.withValues(alpha:0.0),
+                                    Colors.white.withValues(
+                                        alpha: 0.07), // much lower opacity
+                                    Colors.white.withValues(alpha: 0.0),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.white.withValues(alpha:0.04),
+                                    color: Colors.white.withValues(alpha: 0.04),
                                     blurRadius: 24,
                                     spreadRadius: 2,
                                   ),
@@ -885,7 +937,7 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                           Center(
                             child: Icon(
                               _getStageIcon(state.stage),
-                              color: Colors.white.withValues(alpha:0.92),
+                              color: Colors.white.withValues(alpha: 0.92),
                               size: 48,
                             ),
                           ),
@@ -900,7 +952,8 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
                           animationValue: _animationController.value,
                           orbRadius: orbRadius,
                         ),
-                        size: Size((orbRadius + 40).toDouble(), (orbRadius + 40).toDouble()),
+                        size: Size((orbRadius + 40).toDouble(),
+                            (orbRadius + 40).toDouble()),
                       ),
                     ),
                   ],
@@ -945,7 +998,6 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
     }
   }
 
-
   // Provide appropriate feedback based on breathing stage
   void _provideFeedback(BreathingStage stage) {
     // Haptic feedback
@@ -970,13 +1022,12 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen> with Sing
 
     // TODO: Add sound feedback using AudioPlayer or similar
     // This would require adding a dependency to pubspec.yaml
-    // Example: 
+    // Example:
     // if (_enableSound) {
     //   final player = AudioPlayer();
     //   player.play(AssetSource('sounds/${stage.toString().split('.').last}.mp3'));
     // }
   }
-
 }
 
 class _IridescentBorderPainter extends CustomPainter {
@@ -992,9 +1043,9 @@ class _IridescentBorderPainter extends CustomPainter {
         startAngle: 0,
         endAngle: 6.28319, // 2*pi
         colors: [
-          primary.withValues(alpha:0.7),
-          secondary.withValues(alpha:0.7),
-          primary.withValues(alpha:0.7),
+          primary.withValues(alpha: 0.7),
+          secondary.withValues(alpha: 0.7),
+          primary.withValues(alpha: 0.7),
         ],
         stops: const [0.0, 0.5, 1.0],
       ).createShader(rect)

@@ -85,3 +85,6 @@ app.*.map.json
 W*.md
 .*rules
 *CLEANUP.md
+
+# iOS developer-specific settings
+ios/Flutter/DeveloperSettings.xcconfig

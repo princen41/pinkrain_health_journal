@@ -16,7 +16,6 @@ import 'package:pretty_animated_text/pretty_animated_text.dart';
 
 import '../../../core/theme/icons.dart';
 import '../../../core/theme/tokens.dart';
-import 'components/correlation_analysis.dart';
 import 'components/mood_trend_chart.dart';
 import 'components/scatter_plot_painter.dart';
 import 'components/wellness_prediction.dart';

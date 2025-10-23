@@ -1,2 +1,2 @@
 // Configuration file for build settings
-DEVELOPMENT_TEAM = 85PR7THRT2
+#include "DeveloperSettings.xcconfig"
