@@ -126,15 +126,39 @@ class HiveService {
     }
   }
 
-  // Get mood data for a specific date
+  // Get mood data for a specific date (returns latest entry for backward compatibility)
   static Future<Map<String, dynamic>?> getMoodForDate(DateTime date) async {
+    try {
+      final entries = await getMoodEntriesForDate(date);
+      return entries != null && entries.isNotEmpty ? entries.last : null;
+    } catch (e) {
+      devPrint('Error getting mood data: $e');
+      return null;
+    }
+  }
+
+  // Get all mood entries for a specific date
+  static Future<List<Map<String, dynamic>>?> getMoodEntriesForDate(DateTime date) async {
     try {
       final box = await _openBox(moodBoxName);
       final dateKey = DateFormat('yyyy-MM-dd').format(date);
-      final moodData = await box.get('mood_$dateKey');
-      return moodData != null ? Map<String, dynamic>.from(moodData) : null;
+      final data = await box.get('mood_$dateKey');
+      
+      if (data == null) return null;
+      
+      // Handle backward compatibility: if it's a single entry, convert to list
+      if (data is Map && data.containsKey('mood')) {
+        return [Map<String, dynamic>.from(data)];
+      }
+      
+      // Handle new format: list of entries
+      if (data is List) {
+        return data.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      
+      return null;
     } catch (e) {
-      devPrint('Error getting mood data: $e');
+      devPrint('Error getting mood entries: $e');
       return null;
     }
   }
@@ -151,7 +175,7 @@ class HiveService {
     }
   }
 
-  // Save mood data for a specific date
+  // Save mood data for a specific date (replaces all entries)
   static Future<void> saveMoodForDate(
       DateTime date, int mood, String description) async {
     try {
@@ -162,12 +186,14 @@ class HiveService {
       final box = Hive.box(moodBoxName);
       final dateKey = DateFormat('yyyy-MM-dd').format(date);
 
-      // Save the mood data
-      await box.put('mood_$dateKey', {
-        'mood': mood,
-        'description': description,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
+      // Save as a list with single entry
+      await box.put('mood_$dateKey', [
+        {
+          'mood': mood,
+          'description': description,
+          'timestamp': DateTime.now().toIso8601String(),
+        }
+      ]);
 
       // If it's today, also update current mood
       final today = DateTime.now();
@@ -185,6 +211,50 @@ class HiveService {
     } catch (e) {
       devPrint('Error saving mood data for date: $e');
       rethrow; // Rethrow to allow proper error handling upstream
+    }
+  }
+
+  // Add a new mood entry to existing entries for a date
+  static Future<void> addMoodEntryForDate(
+      DateTime date, int mood, String description) async {
+    try {
+      // Ensure the box is open
+      if (!Hive.isBoxOpen(moodBoxName)) {
+        await Hive.openBox(moodBoxName);
+      }
+      final box = Hive.box(moodBoxName);
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+
+      // Get existing entries
+      final existingEntries = await getMoodEntriesForDate(date) ?? [];
+      
+      // Add new entry
+      final newEntry = {
+        'mood': mood,
+        'description': description,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      
+      existingEntries.add(newEntry);
+      
+      // Save updated list
+      await box.put('mood_$dateKey', existingEntries);
+
+      // If it's today, also update current mood to the latest
+      final today = DateTime.now();
+      final isToday = date.year == today.year &&
+          date.month == today.month &&
+          date.day == today.day;
+
+      if (isToday) {
+        await saveUserMood(mood, description);
+      }
+
+      devPrint(
+          'Successfully added mood entry $mood with description "$description" for date $dateKey');
+    } catch (e) {
+      devPrint('Error adding mood entry for date: $e');
+      rethrow;
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
@@ -9,6 +10,7 @@ import 'package:pinkrain/core/util/helpers.dart';
 import 'package:pinkrain/features/journal/presentation/daily_mood_prompt.dart';
 import 'package:pretty_animated_text/pretty_animated_text.dart';
 
+import '../../../core/theme/colors.dart';
 import '../../../core/theme/icons.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/util/date_format_converters.dart';
@@ -28,6 +30,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   late final PageController _pageController;
   late DateTime selectedDate;
   late List<IntakeLog> medList = [];
+  int _moodRefreshKey = 0; // Key to force mood widget refresh
 
   @override
   void initState() {
@@ -90,15 +93,20 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           if (!mounted) return;
 
           // Show the daily mood prompt
-          showDialog(
+          showModalBottomSheet(
             context: context,
-            barrierDismissible: false,
+            isDismissible: false,
+            enableDrag: true,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
             builder: (context) {
               return DailyMoodPrompt(
                 onComplete: () {
                   Navigator.of(context).pop();
                   HiveService.setMoodEntryForToday();
-                  setState(() {});
+                  setState(() {
+                    _moodRefreshKey++;
+                  });
                 },
               );
             },
@@ -134,15 +142,20 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                   onPageChanged: _onPageChanged,
                   itemBuilder: (context, index) {
                     //final date = DateTime.now().add(Duration(days: index - 1000));
-                    return ListView(
-                      children: [
-                        _buildTodayHeading(),
-                        _buildMorningSection(),
-                        _buildNoonSection(),
-                        _buildAfternoonSection(),
-                        _buildEveningSection(),
-                        _buildNightSection(),
-                      ],
+                    return MediaQuery.removePadding(
+                      context: context,
+                      removeTop: true,
+                      child: ListView(
+                        padding: EdgeInsets.only(bottom: 100),
+                        children: [
+                          _buildTodayHeading(),
+                          _buildMorningSection(),
+                          _buildNoonSection(),
+                          _buildAfternoonSection(),
+                          _buildEveningSection(),
+                          _buildNightSection(),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -210,10 +223,10 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                 },
                 child: Container(
                   width: 45,
-                  height: 65,
+                  height: 60,
                   decoration: BoxDecoration(
                     color: isSelected ? Colors.grey[800] : AppTokens.bgMuted,
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(18),
                     border: isToday && !isSelected
                         ? Border.all(
                             color: Colors.grey[600] ?? Colors.grey.shade600,
@@ -230,7 +243,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                               ? AppTokens.textInvert
                               : AppTokens.textSecondary,
                           fontSize: 14,
-                          fontWeight: AppTokens.fontWeightW400,
+                          fontWeight: AppTokens.fontWeightBold,
                         ),
                       ),
                       Text(
@@ -240,7 +253,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                               ? AppTokens.textInvert
                               : AppTokens.textPrimary,
                           fontSize: 18,
-                          fontWeight: AppTokens.fontWeightW500,
+                          fontWeight: AppTokens.fontWeightW600,
                         ),
                       ),
                     ],
@@ -258,11 +271,11 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     final date = selectedDate;
     String headingText;
     if (date.day == DateTime.now().day) {
-      headingText = 'Today - ${getMonthName(date.month)} ${date.day}';
+      headingText = 'Today, ${getMonthName(date.month)} ${date.day}';
     } else if (date.day == DateTime.now().add(Duration(days: 1)).day) {
-      headingText = 'Tomorrow - ${getMonthName(date.month)} ${date.day}';
+      headingText = 'Tomorrow, ${getMonthName(date.month)} ${date.day}';
     } else if (date.day == DateTime.now().subtract(Duration(days: 1)).day) {
-      headingText = 'Yesterday - ${getMonthName(date.month)} ${date.day}';
+      headingText = 'Yesterday, ${getMonthName(date.month)} ${date.day}';
     } else {
       headingText = '${getWeekdayName(date.weekday)}, ${getMonthName(date.month)} ${date.day}';
     }
@@ -271,7 +284,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 10),
           child: Text(
             headingText,
             style: TextStyle(
@@ -299,6 +312,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
 
     // Use FutureBuilder to handle async data loading
     return FutureBuilder<Map<String, dynamic>?>(
+      key: ValueKey('mood_${date.toIso8601String()}_$_moodRefreshKey'), // Force rebuild when key changes
       future: _getMoodData(date),
       builder: (context, snapshot) {
         // Default values
@@ -339,91 +353,92 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: () {
+                // Check if date is today
+                final now = DateTime.now();
+                final today = DateTime(now.year, now.month, now.day);
+                final selectedDate = DateTime(date.year, date.month, date.day);
+                final isToday = selectedDate == today;
+                
                 if (hasMood && moodData != null) {
-                  // Show full mood description
+                  // Show board with all mood entries
                   _showMoodDetails(date, moodData);
-                } else {
-                  // Show mood input dialog
+                } else if (isToday) {
+                  // Only allow adding mood for today
                   _showAddMoodDialog(date);
                 }
+                // For past dates without mood data, do nothing
               },
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          BlurText(
-                            text: hasMood && (moodData?['mood'] != null)
-                                ? 'I felt ${getMoodLabel(moodData?['mood']).toLowerCase()}'
-                                : 'How did you feel?',
-                            duration: const Duration(milliseconds: 500),
-                            type: AnimationType.word,
-                            textStyle: TextStyle(
-                              fontSize: 16,
-                              fontWeight: AppTokens.fontWeightBold,
-                              color: AppTokens.textPrimary,
-                            ),
+                child: Builder(
+                  builder: (context) {
+                    // Check if date is today
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final selectedDate = DateTime(date.year, date.month, date.day);
+                    final isToday = selectedDate == today;
+                    
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              BlurText(
+                                text: isToday 
+                                    ? 'How do you feel?' 
+                                    : (hasMood && moodData != null)
+                                        ? 'Your mood notes'
+                                        : 'No mood notes',
+                                duration: const Duration(milliseconds: 500),
+                                type: AnimationType.word,
+                                textStyle: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: AppTokens.fontWeightBold,
+                                  color: AppTokens.textPrimary,
+                                ),
+                              ),
+                              if (hasMood && moodData != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  isToday 
+                                      ? 'Tap to see your notes' 
+                                      : 'Tap to view',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppTokens.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          if (hasMood && moodData != null) SizedBox(height: 8),
-                          if (hasMood && moodData != null)
-                            ChimeBellText(
-                              text: (moodData['description'] as String),
-                              duration: Duration(
-                                  milliseconds: moodData['description']
-                                          .toString()
-                                          .isEmpty
-                                      ? 500 // Default duration if description is empty
-                                      : (500 /
-                                              (moodData['description']
-                                                  .toString()
-                                                  .length))
-                                          .toInt()),
-                              type: AnimationType.letter,
-                              textStyle: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[700],
-                              ),
-                              /*maxLines: 1,
-                              overflow: TextOverflow.ellipsis,*/
-                            ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: hasMood && moodData != null
-                            ? Colors.white
-                            : Colors.grey[200],
-                        shape: BoxShape.circle,
-                        boxShadow: hasMood && moodData != null
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(20),
-                                  blurRadius: 2,
-                                  spreadRadius: 1,
+                        ),
+                        SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: hasMood && moodData != null
+                              ? SvgPicture.asset(
+                                  'assets/icons/${_getMoodIconName(moodData['mood'] as int)}.svg',
+                                  width: 30,
+                                  height: 30,
                                 )
-                              ]
-                            : null,
-                      ),
-                      child: hasMood && moodData != null
-                          ? Center(
-                              child: Text(
-                                getMoodEmoji(moodData['mood'] as int),
-                                style: TextStyle(fontSize: 24),
-                              ),
-                            )
-                          : Icon(
-                              Icons.add,
-                              color: Colors.grey[400],
-                              size: 24,
-                            ),
-                    ),
-                  ],
+                              : isToday
+                                  ? Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.add,
+                                        color: Colors.grey[400],
+                                        size: 20,
+                                      ),
+                                    )
+                                  : SizedBox.shrink(),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -448,122 +463,240 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   }
 
   // Show detailed mood information in a bottom sheet
-  void _showMoodDetails(DateTime date, Map<String, dynamic> moodData) {
+  void _showMoodDetails(DateTime date, Map<String, dynamic> moodData) async {
+    // Load all mood entries for this date
+    final moodEntries = await HiveService.getMoodEntriesForDate(date) ?? [moodData];
+    
+    // Check if date is today
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDate = DateTime(date.year, date.month, date.day);
+    final isToday = selectedDate == today;
+    
+    if (!mounted) return;
+    
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        final mood = moodData['mood'] as int;
-        final description = moodData['description'] as String;
 
-        // Parse timestamp - handle both string and int formats
-        DateTime timestamp;
-        if (moodData['timestamp'] is int) {
-          timestamp =
-              DateTime.fromMillisecondsSinceEpoch(moodData['timestamp'] as int);
-        } else {
-          timestamp = DateTime.parse(moodData['timestamp'] as String);
-        }
-
-        final timeString = DateFormat('h:mm a').format(timestamp);
-
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(20),
-                      blurRadius: 4,
-                      spreadRadius: 2,
-                    )
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    getMoodEmoji(mood),
-                    style: TextStyle(fontSize: 60),
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppTokens.bgPrimary,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTokens.borderLight,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                getMoodLabel(mood),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: AppTokens.fontWeightBold,
-                  color: AppTokens.textPrimary,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Recorded at $timeString',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTokens.textSecondary,
-                ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                description,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppTokens.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppTokens.buttonSecondaryBg,
-                      foregroundColor: AppTokens.textPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Your Mood Notes',
+                        style: AppTokens.textStyleXLarge,
                       ),
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                    child: Text('Close'),
-                  ),
-                  SizedBox(width: 16),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _showEditMoodDialog(date, moodData);
-                    },
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppTokens.buttonPrimaryBg,
-                      foregroundColor: AppTokens.textPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                      Text(
+                        DateFormat('MMM d').format(date),
+                        style: AppTokens.textStyleMedium.copyWith(
+                          color: AppTokens.textSecondary,
+                        ),
                       ),
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                    child: Text('Edit'),
+                    ],
                   ),
-                ],
-              ),
-            ],
+                ),
+                
+                // Notes Board
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.start,
+                      children: moodEntries.map((entry) {
+                        final mood = entry['mood'] as int;
+                        final description = entry['description'] as String;
+                        DateTime timestamp;
+                        if (entry['timestamp'] is int) {
+                          timestamp = DateTime.fromMillisecondsSinceEpoch(entry['timestamp'] as int);
+                        } else {
+                          timestamp = DateTime.parse(entry['timestamp'] as String);
+                        }
+                        final timeString = DateFormat('h:mm a').format(timestamp);
+                        
+                        return _buildPaperNote(
+                          mood: mood,
+                          description: description,
+                          timeString: timeString,
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                
+                // Action Buttons
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  child: isToday
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: Button.secondary(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                                text: 'Close',
+                                size: ButtonSize.medium,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Button.primary(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _showAddMoodDialog(date);
+                                },
+                                text: '+ Add Note',
+                                size: ButtonSize.medium,
+                              ),
+                            ),
+                          ],
+                        )
+                      : SizedBox(
+                          width: double.infinity,
+                          child: Button.secondary(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            text: 'Close',
+                            size: ButtonSize.medium,
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  // Get color for mood
+  Color _getMoodColor(int mood) {
+    switch (mood) {
+      case 0: // Very Sad
+        return AppColors.pastelBlue;
+      case 1: // Sad
+        return AppColors.pastelBlue;
+      case 2: // Neutral
+        return const Color(0xFFE8E8E8); // Light grey
+      case 3: // Happy
+        return AppColors.pink40;
+      case 4: // Very Happy
+        return AppColors.pink40;
+      default:
+        return const Color(0xFFE8E8E8);
+    }
+  }
+
+  // Helper method to build a single paper note
+  Widget _buildPaperNote({
+    required int mood,
+    required String description,
+    required String timeString,
+  }) {
+    final noteColor = _getMoodColor(mood);
+    
+    return Container(
+      width: (MediaQuery.of(context).size.width - 52) / 2, // Two columns with spacing
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: noteColor,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(
+          color: noteColor.withAlpha(180), // Border matches note color
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 12,
+            offset: const Offset(2, 3),
+          ),
+          BoxShadow(
+            color: noteColor.withAlpha(80), // Shadow tinted with note color
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header with mood icon and time
+          Row(
+            children: [
+              SvgPicture.asset(
+                'assets/icons/${_getMoodIconName(mood)}.svg',
+                width: 24,
+                height: 24,
+              ),
+              const Spacer(),
+              Text(
+                timeString,
+                style: AppTokens.textStyleSmall.copyWith(
+                  color: AppTokens.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            // Tape indicator
+            Container(
+              height: 1,
+              width: 30,
+              decoration: BoxDecoration(
+                color: AppTokens.borderLight.withAlpha(100),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Description text
+            Text(
+              description,
+              style: AppTokens.textStyleSmall.copyWith(
+                color: AppTokens.textPrimary,
+                height: 1.5,
+                letterSpacing: 0.1,
+              ),
+              maxLines: 6,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -589,38 +722,20 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
       return;
     }
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isDismissible: true,
+      enableDrag: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return DailyMoodPrompt(
           date: date, // Pass the selected date
           onComplete: () {
             Navigator.of(context).pop();
             setState(() {
-              // Refresh the UI to show the new mood
-            });
-          },
-        );
-      },
-    );
-  }
-
-  // Show dialog to edit mood for a date
-  void _showEditMoodDialog(DateTime date, Map<String, dynamic> moodData) {
-    final int initialMood = moodData['mood'] as int;
-    final String initialDescription = moodData['description'] as String;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return EditMoodDialog(
-          initialMood: initialMood,
-          initialDescription: initialDescription,
-          date: date,
-          onComplete: () {
-            Navigator.of(context).pop();
-            setState(() {
-              // Refresh the UI to show the updated mood
+              // Increment key to force mood widget refresh
+              _moodRefreshKey++;
             });
           },
         );
@@ -636,7 +751,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Morning', '⏰'),
+              _buildSectionHeader('Morning', 'sunrise'),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -657,7 +772,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Noon', '☀️'),
+              _buildSectionHeader('Noon', 'sun'),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -678,7 +793,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Afternoon', '🌤️'),
+              _buildSectionHeader('Afternoon', 'afternoon'),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -699,7 +814,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Evening', '🌙'),
+              _buildSectionHeader('Evening', 'sunset'),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -720,7 +835,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Night', '🌑'),
+              _buildSectionHeader('Night', 'moon'),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -733,14 +848,19 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           );
   }
 
-  Padding _buildSectionHeader(String title, String emoji) {
+  Padding _buildSectionHeader(String title, String iconName) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Row(
         children: [
-          Text(
-            emoji,
-            style: TextStyle(fontSize: 24),
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: SvgPicture.asset(
+              'assets/icons/$iconName.svg',
+              width: 32,
+              height: 32,
+            ),
           ),
           SizedBox(width: 10),
           Text(
@@ -1274,44 +1394,20 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   }
 }
 
-// Dialog to edit mood entries
-class EditMoodDialog extends StatefulWidget {
-  final int initialMood;
-  final String initialDescription;
-  final DateTime date;
-  final VoidCallback onComplete;
-
-  const EditMoodDialog({
-    super.key,
-    required this.initialMood,
-    required this.initialDescription,
-    required this.date,
-    required this.onComplete,
-  });
-
-  @override
-  State<EditMoodDialog> createState() => EditMoodDialogState();
-}
-
-class EditMoodDialogState extends State<EditMoodDialog> {
-  @override
-  Widget build(BuildContext context) {
-    // Debug log to verify the edit dialog is being called with correct values
-    devPrint(
-        'EditMoodDialog: Editing mood with initialMood=${widget.initialMood}, initialDescription="${widget.initialDescription}"');
-
-    // Instead of using a custom edit dialog, we reuse DailyMoodPrompt
-    // but pass in the initial values and date
-    return DailyMoodPrompt(
-      onComplete: () {
-        devPrint('EditMoodDialog: Edit completed successfully');
-        widget.onComplete();
-      },
-      date: widget.date,
-      initialMood: widget.initialMood,
-      initialDescription: widget.initialDescription,
-      isEditing: true, // Flag to indicate this is an edit operation
-    );
+String _getMoodIconName(int mood) {
+  switch (mood) {
+    case 0:
+      return 'very-sad';
+    case 1:
+      return 'sad';
+    case 2:
+      return 'neutral';
+    case 3:
+      return 'happy';
+    case 4:
+      return 'very-happy';
+    default:
+      return 'neutral';
   }
 }
 

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
 import 'package:pinkrain/core/util/helpers.dart';
+import 'package:pinkrain/core/widgets/buttons.dart';
 import 'package:pinkrain/features/journal/presentation/symptom_predicton_notifier.dart';
-import 'package:pinkrain/features/wellness/presentation/components/mood_painter.dart';
 
 import '../data/symptom_prediction.dart';
 import 'journal_screen.dart';
@@ -66,40 +66,35 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
         final date = widget.date ?? DateTime.now();
         final dateKey = DateFormat('yyyy-MM-dd').format(date);
 
-        // Make sure the box is open before saving
-        if (!Hive.isBoxOpen(HiveService.moodBoxName)) {
-          await Hive.openBox(HiveService.moodBoxName);
-        }
-
-        final box = Hive.box(HiveService.moodBoxName);
-
         // Log what we're saving
         devPrint('Saving mood data for date: $dateKey');
         devPrint('Mood: $selectedMood, Description: ${_feelingsController.text}');
         devPrint('Is editing mode: ${widget.isEditing}');
 
-        // Save the mood data
-        await box.put('mood_$dateKey', {
-          'mood': selectedMood,
-          'description': _feelingsController.text,
-          'timestamp': DateTime.now()
-              .toIso8601String(), // Always use current timestamp for when it was recorded
-        });
+        // Add mood entry (appends to existing entries for the day)
+        await HiveService.addMoodEntryForDate(
+          date,
+          selectedMood,
+          _feelingsController.text,
+        );
 
-        // Save the user's current mood only if we're recording for today
+        // If it's the first entry of the day, mark it
         final today = DateTime.now();
         final isToday = date.year == today.year &&
             date.month == today.month &&
             date.day == today.day;
         if (isToday) {
-          await HiveService.saveUserMood(
-              selectedMood, _feelingsController.text);
+          final entries = await HiveService.getMoodEntriesForDate(date);
+          if (entries != null && entries.length == 1) {
+            // First entry of today, mark the date
+            await HiveService.setMoodEntryForToday();
+          }
         }
 
         // Verify the data was saved correctly
-        final savedData = await HiveService.getMoodForDate(date);
-        if (savedData != null) {
-          devPrint('Mood data saved successfully: ${savedData['mood']}, ${savedData['description']}');
+        final savedEntries = await HiveService.getMoodEntriesForDate(date);
+        if (savedEntries != null && savedEntries.isNotEmpty) {
+          devPrint('Mood entries saved successfully. Total entries: ${savedEntries.length}');
         } else {
           devPrint('Warning: Could not verify saved mood data');
         }
@@ -126,154 +121,178 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
   Widget build(BuildContext context) {
     // Listen to symptom predictions
     predictedSymptoms = ref.watch(symptomPredictionProvider);
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      elevation: 0,
-      backgroundColor: Colors.transparent,
-      child: contentBox(context),
-    );
-  }
-
-  Container contentBox(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        shape: BoxShape.rectangle,
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            offset: Offset(0, 10),
-            blurRadius: 10,
+    
+    // Get keyboard height to adjust bottom padding
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    
+    return AnimatedPadding(
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      child: GestureDetector(
+        onTap: () {
+          // Dismiss keyboard when tapping outside text field
+          FocusScope.of(context).unfocus();
+        },
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppTokens.bgPrimary,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
           ),
-        ],
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            // Cute header
-            Text(
-              'How are you feeling today?',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                color: Colors.pink[400],
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // Mood selection
-            _buildMoodSelection(),
-            const SizedBox(height: 10),
-
-            // Text field for feelings
-            _buildFeelingsTextField(ref),
-            const SizedBox(height: 10),
-
-            // Symptom prediction container
-            if (predictedSymptoms.isNotEmpty)
-              Flexible(
-                child: _buildSymptomPredictionContainer(),
-              ),
-            const SizedBox(height: 10),
-
-            // Submit button
-            TextButton(
-              onPressed: _saveMoodData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTokens.buttonPrimaryBg,
-                foregroundColor: AppTokens.textPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTokens.borderLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              child: const Text(
-                'Submit',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                
+                // Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        // Cute header
+                        Text(
+                          'How are you feeling today?',
+                          style: AppTokens.textStyleXLarge.copyWith(
+                            color: AppTokens.iconBold,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Mood selection
+                        _buildMoodSelection(),
+                        const SizedBox(height: 20),
+
+                        // Text field for feelings
+                        _buildFeelingsTextField(ref),
+                        const SizedBox(height: 16),
+
+                        // Symptom prediction container
+                        if (predictedSymptoms.isNotEmpty)
+                          _buildSymptomPredictionContainer(),
+
+                        // Submit button
+                        SizedBox(
+                          width: double.infinity,
+                          child: Button.primary(
+                            onPressed: _saveMoodData,
+                            text: 'Submit',
+                            size: ButtonSize.large,
+                          ),
+                        ),
+                        
+                        // Bottom padding for safe area
+                        const SizedBox(height: 10),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  SizedBox _buildMoodSelection() {
-    return SizedBox(
-      height: 50,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: List.generate(5, (index) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  selectedMood = index;
-                });
-              },
-              child: Column(
-                children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: selectedMood == index
-                          ? Colors.pink[100]
-                          : Colors.grey[100],
-                      shape: BoxShape.circle,
-                      boxShadow: selectedMood == index
-                          ? [
-                              BoxShadow(
-                                color: Colors.pink.withAlpha(76),
-                                spreadRadius: 1,
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
-                              )
-                            ]
-                          : null,
-                    ),
-                    child: //Text(getMoodEmoji(index))
-                        CustomPaint(
-                      painter: MoodPainter(index, selectedMood == index),
-                      size: const Size(15, 15),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    getMoodLabel(index),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: selectedMood == index
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: selectedMood == index
-                          ? Colors.pink[400]
-                          : Colors.grey[600],
-                    ),
-                  ),
-                ],
+  String _getMoodIconName(int index) {
+    switch (index) {
+      case 0:
+        return 'very-sad';
+      case 1:
+        return 'sad';
+      case 2:
+        return 'neutral';
+      case 3:
+        return 'happy';
+      case 4:
+        return 'very-happy';
+      default:
+        return 'neutral';
+    }
+  }
+
+  Widget _buildMoodSelection() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(5, (index) {
+        final isSelected = selectedMood == index;
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              selectedMood = index;
+            });
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Emoji icon with optional shadow when selected
+              Container(
+                decoration: BoxDecoration(
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: AppTokens.buttonPrimaryBg.withAlpha(128),
+                            spreadRadius: 3,
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          )
+                        ]
+                      : null,
+                ),
+                child: SvgPicture.asset(
+                  'assets/icons/${_getMoodIconName(index)}.svg',
+                  width: 50,
+                  height: 50,
+                  colorFilter: isSelected
+                      ? null
+                      : ColorFilter.mode(
+                          AppTokens.textSecondary,
+                          BlendMode.srcIn,
+                        ),
+                ),
               ),
-            ),
-          );
-        }),
-      ),
+              const SizedBox(height: 8),
+              Text(
+                getMoodLabel(index),
+                style: AppTokens.textStyleSmall.copyWith(
+                  fontSize: 12,
+                  fontWeight: isSelected
+                      ? AppTokens.fontWeightBold
+                      : AppTokens.fontWeightW500,
+                  color: isSelected
+                      ? AppTokens.textPrimary
+                      : AppTokens.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 
   TextField _buildFeelingsTextField(WidgetRef ref) {
     return TextField(
-      cursorColor: Colors.pink[400],
+      cursorColor: AppTokens.cursor,
       controller: _feelingsController,
-      maxLines: 3,
+      maxLines: 4,
+      minLines: 4,
+      style: AppTokens.textStyleMedium,
       onChanged: (value) {
         // Don't predict if text is too short
         if (value.length <= 7) {
@@ -299,14 +318,27 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
       },
       decoration: InputDecoration(
         hintText: 'Tell us more about how you\'re feeling...',
-        hintStyle: TextStyle(color: Colors.grey[400]),
-        filled: true,
-        fillColor: Colors.grey[50],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none,
+        hintStyle: const TextStyle(
+          color: AppTokens.textPlaceholder,
+          fontSize: 15,
         ),
-        contentPadding: const EdgeInsets.all(15),
+        filled: true,
+        fillColor: AppTokens.bgMuted,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppTokens.borderLight,
+            width: 1.5,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppTokens.buttonPrimaryBg,
+            width: 2,
+          ),
+        ),
+        contentPadding: const EdgeInsets.all(16),
       ),
     );
   }
@@ -319,19 +351,14 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.pink[50]!.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.pink[100]!.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.pink[100]!.withValues(alpha: 0.1),
-            blurRadius: 10,
-            spreadRadius: 0,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppTokens.buttonElevatedBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTokens.buttonPrimaryBg.withAlpha(128),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,17 +367,15 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
             children: [
               Icon(
                 Icons.psychology_outlined,
-                color: Colors.pink[400],
+                color: AppTokens.iconBold,
                 size: 20,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Possible Symptoms',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.pink[400],
-                    fontSize: 16,
+                  style: AppTokens.textStyleMedium.copyWith(
+                    color: AppTokens.iconBold,
                   ),
                 ),
               ),
@@ -361,7 +386,7 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
                     return IconButton(
                       icon: Icon(
                         isExpanded ? Icons.remove : Icons.add,
-                        color: Colors.pink[400],
+                        color: AppTokens.iconBold,
                         size: 20,
                       ),
                       padding: EdgeInsets.zero,
@@ -402,24 +427,17 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
     final bool isHighProbability = probability >= 0.4;
 
     return Container(
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: 12,
-        vertical: 6,
+        vertical: 8,
       ),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(30),
+        color: AppTokens.bgPrimary,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.pink[100]!.withValues(alpha: 0.5),
+          color: AppTokens.borderLight,
+          width: 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.pink[100]!.withValues(alpha: 0.1),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: const Offset(0, 1),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -427,15 +445,17 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
           Icon(
             Icons.medical_services_outlined,
             size: isHighProbability ? 16 : 14,
-            color: Colors.pink[300],
+            color: AppTokens.iconBold,
           ),
           const SizedBox(width: 6),
           Text(
             '${symptom.name} (${(probability * 100).toStringAsFixed(1)}%)',
-            style: TextStyle(
-              color: Colors.pink[700],
+            style: AppTokens.textStyleSmall.copyWith(
               fontSize: isHighProbability ? 14 : 12,
-              fontWeight: isHighProbability ? FontWeight.w600 : FontWeight.normal,
+              fontWeight: isHighProbability 
+                  ? AppTokens.fontWeightW600 
+                  : AppTokens.fontWeightW500,
+              color: AppTokens.textPrimary,
             ),
           ),
         ],
