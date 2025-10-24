@@ -60,12 +60,24 @@ extension DateTimeExtensions on DateTime {
 }
 
 extension ListExtensions on List<IntakeLog> {
-  List<IntakeLog> forEvening() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 14).toList();
+  List<IntakeLog> forMorning() {
+    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 4 && t.treatment.treatmentPlan.timeOfDay.hour < 12).toList();
   }
 
-  List<IntakeLog> forMorning() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour <= 12).toList();
+  List<IntakeLog> forNoon() {
+    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 12 && t.treatment.treatmentPlan.timeOfDay.hour < 15).toList();
+  }
+
+  List<IntakeLog> forAfternoon() {
+    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 15 && t.treatment.treatmentPlan.timeOfDay.hour < 18).toList();
+  }
+
+  List<IntakeLog> forEvening() {
+    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 18 && t.treatment.treatmentPlan.timeOfDay.hour < 21).toList();
+  }
+
+  List<IntakeLog> forNight() {
+    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 21 || t.treatment.treatmentPlan.timeOfDay.hour < 4).toList();
   }
 }
 

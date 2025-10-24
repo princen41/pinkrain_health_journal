@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:pinkrain/core/util/helpers.dart';
 import 'package:pinkrain/core/widgets/index.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
 
 import '../../../core/models/medicine_model.dart';
 import '../../../core/theme/icons.dart';
+import '../../../core/theme/colors.dart';
 import '../../../features/journal/presentation/journal_notifier.dart';
 import '../data/treatment.dart';
 import '../domain/treatment_manager.dart';
@@ -30,6 +34,15 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   late String? selectedSecondaryColor;
   late String selectedMealOption;
   late String selectedDoseUnit;
+  
+  // Schedule and duration state
+  late Map<String, String> doseTimes;
+  late Map<String, TextEditingController> doseControllers;
+  late String selectedReminder;
+  late List<bool> selectedDays;
+  late int selectedDuration;
+  late DateTime startDate;
+  late String selectedStartOption;
 
   @override
   void initState() {
@@ -38,10 +51,33 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     doseController = TextEditingController(text: widget.treatment.medicine.specs.dosage.toString());
     commentController = TextEditingController(text: widget.treatment.notes);
     selectedTreatmentType = widget.treatment.medicine.type;
-    selectedColor = widget.treatment.medicine.color;
-    selectedSecondaryColor = null; // Initialize as null for now
+    
+    // Parse bicolore colors from stored color string
+    String colorString = widget.treatment.medicine.color;
+    if (selectedTreatmentType == 'Capsule' && colorString.contains('&')) {
+      final parts = colorString.split('&');
+      if (parts.length == 2) {
+        selectedColor = parts[0].trim();
+        selectedSecondaryColor = parts[1].trim();
+      } else {
+        selectedColor = colorString;
+        selectedSecondaryColor = null;
+      }
+    } else {
+      selectedColor = colorString;
+      selectedSecondaryColor = null;
+    }
     selectedMealOption = widget.treatment.treatmentPlan.mealOption;
     selectedDoseUnit = widget.treatment.medicine.specs.unit;
+    
+    // Initialize schedule and duration
+    doseTimes = {'Dose 1': widget.treatment.formattedTimeOfDay()};
+    doseControllers = {'Dose 1': TextEditingController(text: 'Dose 1')};
+    selectedReminder = 'at time of event';
+    selectedDays = List.from(widget.treatment.treatmentPlan.selectedDays);
+    selectedDuration = widget.treatment.treatmentPlan.endDate.difference(widget.treatment.treatmentPlan.startDate).inDays + 1;
+    startDate = widget.treatment.treatmentPlan.startDate;
+    selectedStartOption = 'Select specific date';
   }
 
   @override
@@ -49,49 +85,78 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     nameController.dispose();
     doseController.dispose();
     commentController.dispose();
+    // Dispose all dose controllers
+    for (var controller in doseControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Treatment'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
+    return CupertinoPageScaffold(
+      backgroundColor: AppTokens.bgPrimary,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppTokens.bgPrimary,
+        border: Border(
+          bottom: BorderSide(
+            color: AppTokens.borderLight,
+            width: 0.5,
+          ),
         ),
+        leading: GestureDetector(
+          onTap: () => context.pop(),
+          child: Container(
+            padding: const EdgeInsets.all(0),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedCancel01,
+              color: AppTokens.textPrimary,
+              size: 28,
+            ),
+          ),
+        ),
+        middle: Text(
+          'Edit Treatment',
+          style: AppTokens.textStyleLarge,
+        ),
+        trailing: Container(width: 0), // Balance the back button
       ),
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTreatmentTypeOptions(),
-                const SizedBox(height: 30),
-                _buildColorOptions(),
-                const SizedBox(height: 30),
-                _buildNameField(),
-                const SizedBox(height: 30),
-                _buildDoseField(),
-                const SizedBox(height: 30),
-                _buildMealOptions(),
-                const SizedBox(height: 30),
-                _buildCommentField(),
-                const SizedBox(height: 30),
-                Center(
-                  child: _buildSaveButton(),
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: _buildDeleteButton(),
-                ),
-              ],
+      child: Material(
+        color: AppTokens.bgPrimary,
+        child: GestureDetector(
+          onTap: () {
+            // Dismiss keyboard when tapping outside text fields
+            FocusScope.of(context).unfocus();
+          },
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  _buildTreatmentTypeOptions(),
+                  const SizedBox(height: 30),
+                  _buildColorOptions(),
+                  const SizedBox(height: 30),
+                  _buildNameField(),
+                  const SizedBox(height: 30),
+                  _buildDoseField(),
+                  const SizedBox(height: 30),
+                  _buildMealOptions(),
+                  const SizedBox(height: 30),
+                  _buildScheduleSection(),
+                  const SizedBox(height: 30),
+                  _buildDurationSection(),
+                  const SizedBox(height: 30),
+                  _buildCommentField(),
+                  const SizedBox(height: 60),
+                  _buildSaveButton(),
+                  const SizedBox(height: 20),
+                  _buildDeleteButton(),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
         ),
@@ -255,11 +320,17 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
         onPressed: () async {
           if (_validateInput()) {
             try {
+              // Create color description for bicolore capsules
+              String colorDescription = selectedColor;
+              if (selectedTreatmentType == 'Capsule' && selectedSecondaryColor != null) {
+                colorDescription = '$selectedColor & $selectedSecondaryColor';
+              }
+
               // Create updated medicine
               final updatedMedicine = Medicine(
                 name: nameController.text,
                 type: selectedTreatmentType,
-                color: selectedColor, // Store the color name, not the Color object string
+                color: colorDescription,
               )..addSpecification(
                   Specification(
                     dosage: double.tryParse(doseController.text) ?? widget.treatment.medicine.specs.dosage,
@@ -268,14 +339,22 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   ),
                 );
 
-              // Create updated treatment plan preserving original fields
+              // Parse the first dose time for timeOfDay
+              String firstDoseTime = doseTimes.values.first;
+              List<String> timeParts = firstDoseTime.split(':');
+              int hour = int.tryParse(timeParts[0]) ?? 10;
+              int minute = int.tryParse(timeParts[1]) ?? 0;
+              DateTime timeOfDay = DateTime(2024, 1, 1, hour, minute);
+
+              // Create updated treatment plan with schedule and duration data
               final updatedTreatmentPlan = TreatmentPlan(
-                startDate: widget.treatment.treatmentPlan.startDate,
-                endDate: widget.treatment.treatmentPlan.endDate,
-                timeOfDay: widget.treatment.treatmentPlan.timeOfDay,
+                startDate: startDate,
+                endDate: startDate.add(Duration(days: selectedDuration - 1)).normalize(),
+                timeOfDay: timeOfDay,
                 mealOption: selectedMealOption,
                 instructions: widget.treatment.treatmentPlan.instructions,
                 frequency: widget.treatment.treatmentPlan.frequency,
+                selectedDays: selectedDays,
               );
 
               // Create updated treatment
@@ -450,6 +529,452 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
       return false;
     }
     return true;
+  }
+
+  Widget _buildScheduleSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FormFieldLabel(text: 'Schedule'),
+        
+        // Dose list (sorted chronologically)
+        ...() {
+          final sortedEntries = doseTimes.entries.toList()
+            ..sort((a, b) => _parseTime(a.value).compareTo(_parseTime(b.value)));
+          return sortedEntries.map((entry) => _buildDoseRow(entry.key, entry.value));
+        }(),
+        
+        // Add dose button
+        Button.secondary(
+          onPressed: () {
+            setState(() {
+              String newDose = 'Dose ${doseTimes.length + 1}';
+              doseTimes[newDose] = '10:00';
+              doseControllers[newDose] = TextEditingController(text: newDose);
+            });
+          },
+          text: 'add a dose',
+          backgroundColor: AppColors.pink100,
+          textColor: AppTokens.textPrimary,
+          size: ButtonSize.small,
+          borderWidth: 0,
+          leadingIcon: HugeIcon(
+            icon: HugeIcons.strokeRoundedAdd01,
+            color: AppTokens.textPrimary,
+            size: 16,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDoseRow(String doseName, String time) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: CustomTextField(
+                  controller: doseControllers[doseName]!,
+                  hintText: 'Dose name',
+                  onChanged: () {
+                    // Update the dose name in the maps
+                    String newName = doseControllers[doseName]!.text;
+                    if (newName.isNotEmpty && newName != doseName) {
+                      setState(() {
+                        // Update doseTimes with new name
+                        String time = doseTimes[doseName]!;
+                        doseTimes.remove(doseName);
+                        doseTimes[newName] = time;
+                        
+                        // Update controllers map
+                        TextEditingController controller = doseControllers[doseName]!;
+                        doseControllers.remove(doseName);
+                        doseControllers[newName] = controller;
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Time display/button
+                    GestureDetector(
+                      onTap: () async {
+                        // Parse current time safely
+                        List<String> timeParts = time.split(':');
+                        if (timeParts.length == 2) {
+                          int? currentHour = int.tryParse(timeParts[0]);
+                          int? currentMinute = int.tryParse(timeParts[1]);
+                          
+                          if (currentHour != null && currentMinute != null) {
+                            await showCupertinoModalPopup(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return Container(
+                                  height: 300,
+                                  color: Colors.white,
+                                  child: CupertinoTheme(
+                                    data: CupertinoThemeData(
+                                      textTheme: CupertinoTextThemeData(
+                                        dateTimePickerTextStyle: AppTokens.textStyleLarge,
+                                      ),
+                                    ),
+                                    child: CupertinoDatePicker(
+                                      mode: CupertinoDatePickerMode.time,
+                                      use24hFormat: true,
+                                      minuteInterval: 5,
+                                      initialDateTime: DateTime(2024, 1, 1, currentHour, currentMinute),
+                                      onDateTimeChanged: (DateTime newDateTime) {
+                                        setState(() {
+                                          doseTimes[doseName] = '${newDateTime.hour.toString().padLeft(2, '0')}:${newDateTime.minute.toString().padLeft(2, '0')}';
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                            // Ensure keyboard doesn't appear after picker closes
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              FocusScope.of(context).unfocus();
+                            });
+                          }
+                        }
+                      },
+                      child: Container(
+                        height: 56,
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              time,
+                              style: AppTokens.textStyleMedium,
+                            ),
+                            const Spacer(),
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedArrowDown01,
+                              color: AppTokens.iconMuted,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Delete button (only show if there's more than one dose)
+              if (doseTimes.length > 1) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      // Dispose the controller
+                      doseControllers[doseName]?.dispose();
+                      doseControllers.remove(doseName);
+                      doseTimes.remove(doseName);
+                      
+                      // Renumber remaining doses
+                      final newDoseTimes = <String, String>{};
+                      final newDoseControllers = <String, TextEditingController>{};
+                      final sortedKeys = doseTimes.keys.toList()..sort();
+                      for (int i = 0; i < sortedKeys.length; i++) {
+                        String newName = 'Dose ${i + 1}';
+                        newDoseTimes[newName] = doseTimes[sortedKeys[i]]!;
+                        newDoseControllers[newName] = TextEditingController(text: newName);
+                      }
+                      doseTimes = newDoseTimes;
+                      doseControllers = newDoseControllers;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTokens.stateError.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: AppTokens.stateError,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDurationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FormFieldLabel(text: 'Days taken'),
+        Row(
+          children: _buildDayButtons(),
+        ),
+        const SizedBox(height: 20),
+        FormFieldLabel(text: 'Start'),
+        GestureDetector(
+          onTap: () async {
+            await showCupertinoModalPopup(
+              context: context,
+              builder: (BuildContext context) {
+                return Container(
+                  height: 200,
+                  color: Colors.white,
+                  child: CupertinoPicker(
+                    itemExtent: 50,
+                    onSelectedItemChanged: (int index) {
+                      setState(() {
+                        String selectedValue = ['today', 'tomorrow', 'next Monday', 'Select specific date'][index];
+                        selectedStartOption = selectedValue;
+                        
+                        if (selectedValue == 'today') {
+                          startDate = DateTime.now().normalize();
+                        } else if (selectedValue == 'tomorrow') {
+                          startDate = DateTime.now().add(const Duration(days: 1)).normalize();
+                        } else if (selectedValue == 'next Monday') {
+                          // Calculate next Monday
+                          DateTime now = DateTime.now();
+                          int daysUntilMonday = (8 - now.weekday) % 7;
+                          if (daysUntilMonday == 0) daysUntilMonday = 7;
+                          startDate = now.add(Duration(days: daysUntilMonday)).normalize();
+                        }
+                        // For 'Select specific date', we'll handle it separately
+                      });
+                    },
+                    children: [
+                      'today',
+                      'tomorrow',
+                      'next Monday',
+                      'select specific date',
+                    ].map((String value) {
+                      return Center(
+                        child: Text(
+                          value,
+                          style: AppTokens.textStyleLarge,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            );
+            
+            // If "Select specific date" was selected, show date picker
+            if (selectedStartOption == 'Select specific date' && mounted) {
+              await showCupertinoModalPopup(
+                context: context,
+                builder: (BuildContext context) {
+                  return Container(
+                    height: 300,
+                    color: Colors.white,
+                    child: CupertinoTheme(
+                      data: CupertinoThemeData(
+                        textTheme: CupertinoTextThemeData(
+                          dateTimePickerTextStyle: AppTokens.textStyleLarge,
+                        ),
+                      ),
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.date,
+                        initialDateTime: startDate,
+                        minimumDate: DateTime.now(),
+                        dateOrder: DatePickerDateOrder.dmy,
+                        onDateTimeChanged: (DateTime newDateTime) {
+                          setState(() {
+                            startDate = newDateTime.normalize();
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
+            
+            // Ensure keyboard doesn't appear after picker closes
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              FocusScope.of(context).unfocus();
+            });
+          },
+          child: Container(
+            width: double.infinity,
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  selectedStartOption == 'Select specific date' 
+                      ? _formatDate(startDate)
+                      : selectedStartOption,
+                  style: AppTokens.textStyleMedium,
+                ),
+                const Spacer(),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowDown01,
+                  color: AppTokens.iconMuted,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        FormFieldLabel(text: 'Duration'),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: CustomTextField(
+                controller: TextEditingController(text: selectedDuration.toString()),
+                hintText: 'Duration',
+                keyboardType: TextInputType.number,
+                isNumberField: true,
+                onChanged: () {
+                  // Handle duration changes
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 1,
+              child: GestureDetector(
+                onTap: () async {
+                  await showCupertinoModalPopup(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return Container(
+                        height: 200,
+                        color: Colors.white,
+                        child: CupertinoPicker(
+                          itemExtent: 50,
+                          onSelectedItemChanged: (int index) {
+                            // Handle unit changes if needed
+                          },
+                          children: [
+                            'days',
+                            'weeks',
+                            'months',
+                          ].map((String value) {
+                            return Center(
+                              child: Text(
+                                value,
+                                style: AppTokens.textStyleLarge,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    },
+                  );
+                  // Ensure keyboard doesn't appear after picker closes
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    FocusScope.of(context).unfocus();
+                  });
+                },
+                child: Container(
+                  height: 56,
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        'days',
+                        style: AppTokens.textStyleMedium,
+                      ),
+                      const Spacer(),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedArrowDown01,
+                        color: AppTokens.iconMuted,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildDayButtons() {
+    final List<String> days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    return List.generate(7, (index) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              selectedDays[index] = !selectedDays[index];
+            });
+          },
+          child: Container(
+            margin: EdgeInsets.only(
+              left: index == 0 ? 0 : 4,
+              right: index == 6 ? 0 : 4,
+            ),
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: selectedDays[index] ? AppColors.pink100 : AppTokens.bgMuted,
+            ),
+            child: Center(
+              child: Text(
+                days[index],
+                style: TextStyle(
+                  color: selectedDays[index] ? AppTokens.textPrimary : AppTokens.textSecondary,
+                  fontWeight: AppTokens.fontWeightBold,
+                  fontFamily: 'Outfit',
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  // Helper function to format date as DD/MM/YYYY
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  // Helper method to parse time string to minutes for comparison
+  int _parseTime(String timeString) {
+    List<String> parts = timeString.split(':');
+    if (parts.length == 2) {
+      int? hours = int.tryParse(parts[0]);
+      int? minutes = int.tryParse(parts[1]);
+      if (hours != null && minutes != null) {
+        return hours * 60 + minutes;
+      }
+    }
+    return 0; // Default to 0 if parsing fails
   }
 
   FutureBuilder<SvgPicture> _futureBuildSvg(String text) {

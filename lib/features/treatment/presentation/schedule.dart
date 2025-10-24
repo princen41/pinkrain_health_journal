@@ -431,9 +431,18 @@ class ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Widget _buildNavigationButtons() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: AppTokens.borderLight,
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        child: Row(
         children: [
           Expanded(
             child: Button.secondary(
@@ -443,7 +452,7 @@ class ScheduleScreenState extends State<ScheduleScreen> {
               borderWidth: 0,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Button.primary(
               onPressed: () {
@@ -465,6 +474,7 @@ class ScheduleScreenState extends State<ScheduleScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 }

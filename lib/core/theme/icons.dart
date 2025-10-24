@@ -4,6 +4,16 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../util/helpers.dart';
 
+// Helper function to check if a meal option icon contains capsule elements
+bool _isMealOptionWithCapsule(String fileName) {
+  const mealOptionsWithCapsules = [
+    'before-meal',
+    'after-meal', 
+    'with-food',
+    'never-mind'
+  ];
+  return mealOptionsWithCapsules.contains(fileName);
+}
 
 ColorFilter defaultColorFilter([Color? color]) {
   return ColorFilter.mode(
@@ -22,8 +32,8 @@ Future<SvgPicture> appSvgDynamicImage({
   try {
     String svgString = await rootBundle.loadString('assets/icons/$fileName.svg');
     if(color != null){
-      if(secondaryColor != null && fileName == 'capsule') {
-        // Duotone mode: only apply to capsule icon
+      if(secondaryColor != null && (fileName == 'capsule' || _isMealOptionWithCapsule(fileName))) {
+        // Duotone mode: apply to capsule icon or meal options that contain capsules
         // Capsule uses #FFD1FF (pink) and #8BE8CB (light green)
         svgString = svgString.replaceAll('#FFD1FF', colorToHex(color));
         svgString = svgString.replaceAll('#8BE8CB', colorToHex(secondaryColor));

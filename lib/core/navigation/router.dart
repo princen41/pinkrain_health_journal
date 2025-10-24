@@ -13,6 +13,7 @@ import '../../features/treatment/domain/treatment_manager.dart';
 import '../../features/treatment/presentation/duration.dart';
 import '../../features/treatment/presentation/edit_treatment.dart';
 import '../../features/treatment/presentation/new_treatment.dart';
+import '../../features/treatment/presentation/one_time_take.dart';
 import '../../features/treatment/presentation/schedule.dart';
 import '../../features/wellness/presentation/wellness_screen.dart';
 import '../models/medicine_model.dart';
@@ -30,6 +31,9 @@ final List<GoRoute> routes = [
   GoRoute(
       path: '/new_treatment',
       builder: (context, state) => NewTreatmentScreen()),
+  GoRoute(
+      path: '/one_time_take',
+      builder: (context, state) => OneTimeTakeScreen()),
   GoRoute(
       path: '/schedule',
       builder: (context, state) {

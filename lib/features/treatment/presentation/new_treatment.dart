@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../../../core/util/helpers.dart';
 import '../../../core/widgets/index.dart';
 import '../../../core/theme/tokens.dart';
+import '../../../core/theme/colors.dart';
 import '../domain/treatment_manager.dart';
 
 class NewTreatmentScreen extends StatefulWidget {
@@ -22,11 +25,13 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
   String selectedMealOption = 'Before meal';
   String selectedDoseUnit = 'mg';
 
-
-
   final TextEditingController nameController = TextEditingController();
   final TextEditingController doseController = TextEditingController();
   final TextEditingController commentController = TextEditingController();
+
+  // Validation state
+  bool showNameError = false;
+  bool showDoseError = false;
 
   @override
   void dispose() {
@@ -38,44 +43,74 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text('New treatment'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
+    return CupertinoPageScaffold(
+      backgroundColor: AppTokens.bgPrimary,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppTokens.bgPrimary,
+        border: Border(
+          bottom: BorderSide(
+            color: AppTokens.borderLight,
+            width: 0.5,
+          ),
         ),
+        leading: GestureDetector(
+          onTap: () => context.pop(),
+          child: Container(
+            padding: const EdgeInsets.all(0),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedCancel01,
+              color: AppTokens.textPrimary,
+              size: 28,
+            ),
+          ),
+        ),
+        middle: Text(
+          'New Treatment',
+          style: AppTokens.textStyleLarge,
+        ),
+        trailing: Container(width: 0), // Balance the back button
       ),
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: Container(
-          color: Colors.transparent,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _buildProgressBar(),
-                  SizedBox(height: 20),
-                  _buildTreatmentTypeOptions(),
-                  SizedBox(height: 30),
-                  _buildColorOptions(),
-                  SizedBox(height: 30),
-                  _buildNameField(),
-                  SizedBox(height: 30),
-                  _buildDoseField(),
-                  SizedBox(height: 30),
-                  _buildMealOptions(),
-                  SizedBox(height: 30),
-                  _buildCommentField(),
-                  SizedBox(height: 30),
-                  _buildContinueButton(),
-                ],
-              ),
+      child: Material(
+        color: AppTokens.bgPrimary,
+        child: GestureDetector(
+          onTap: () {
+            // Dismiss keyboard when tapping outside text fields
+            FocusScope.of(context).unfocus();
+          },
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Progress indicator
+                _buildProgressBar(),
+                
+                // Main content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        _buildTreatmentTypeOptions(),
+                        const SizedBox(height: 30),
+                        _buildColorOptions(),
+                        const SizedBox(height: 30),
+                        _buildNameField(),
+                        const SizedBox(height: 30),
+                        _buildDoseField(),
+                        const SizedBox(height: 30),
+                        _buildMealOptions(),
+                        const SizedBox(height: 30),
+                        _buildCommentField(),
+                        const SizedBox(height: 60),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Navigation buttons
+                _buildContinueButton(),
+              ],
             ),
           ),
         ),
@@ -84,12 +119,41 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
   }
 
   Widget _buildProgressBar() {
-    return Row(
-      children: [
-        Expanded(child: Container(height: 4, color: Colors.pink[100])),
-        Expanded(child: Container(height: 4, color: Colors.grey[300])),
-        Expanded(child: Container(height: 4, color: Colors.grey[300])),
-      ],
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppColors.pink100,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppTokens.bgMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppTokens.bgMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -113,6 +177,12 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
                   color: isSelected
                       ? AppTokens.buttonPrimaryBg
                       : AppTokens.buttonSecondaryBg,
+                  border: isSelected
+                      ? Border.all(
+                          color: AppTokens.textPrimary.withValues(alpha: 0.1),
+                          width: 2,
+                        )
+                      : null,
                 ),
                 child: futureBuildSvg(type, selectedColor, 40, selectedSecondaryColor),
               ),
@@ -156,6 +226,15 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
           controller: nameController,
           hintText: 'Enter medicine name',
         ),
+        if (showNameError) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Medicine name is required',
+            style: AppTokens.textStyleSmall.copyWith(
+              color: AppTokens.stateError,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -171,6 +250,15 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
           onUnitChanged: (value) => setState(() => selectedDoseUnit = value!),
           units: ['mg', 'g', 'ml'], // Treatment screens don't need 'pills'
         ),
+        if (showDoseError) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Dosage amount is required',
+            style: AppTokens.textStyleSmall.copyWith(
+              color: AppTokens.stateError,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -243,63 +331,88 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
   }
 
   Widget _buildContinueButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: () {
-          if (_validateInput()) {
-            // Generate a unique ID for this new treatment
-            final uniqueId = generateUniqueId();
-            devPrint("Creating new treatment with generated ID: $uniqueId");
-
-            final treatment = Treatment.newTreatment(
-              id: uniqueId, // Explicitly pass the generated ID
-              name: nameController.text,
-              type: selectedTreatmentType,
-              color: colorMap[selectedColor]?.toString() ?? Colors.white.toString(),
-              dose: double.parse(doseController.text),
-              unit: selectedDoseUnit,
-              mealOption: selectedMealOption,
-              instructions: commentController.text.isNotEmpty ? commentController.text : '',
-            );
-            context.push('/schedule', extra: treatment);
-          }
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFFFFD0FF),
-          padding: EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: AppTokens.borderLight,
+            width: 0.5,
           ),
         ),
-        child: Text('Continue', style: TextStyle(color: Colors.black)),
       ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        child: Row(
+        children: [
+          Expanded(
+            child: Button.secondary(
+              onPressed: () => context.pop(),
+              text: 'Cancel',
+              size: ButtonSize.large,
+              borderWidth: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Button.primary(
+              onPressed: () {
+                if (_validateInput()) {
+                  // Generate a unique ID for this new treatment
+                  final uniqueId = generateUniqueId();
+                  devPrint("Creating new treatment with generated ID: $uniqueId");
+
+                  // Create color description for bicolore capsules
+                  String colorDescription = selectedColor;
+                  if (selectedTreatmentType == 'Capsule' && selectedSecondaryColor != null) {
+                    colorDescription = '$selectedColor & $selectedSecondaryColor';
+                  }
+
+                  final treatment = Treatment.newTreatment(
+                    id: uniqueId, // Explicitly pass the generated ID
+                    name: nameController.text,
+                    type: selectedTreatmentType,
+                    color: colorDescription,
+                    dose: double.parse(doseController.text),
+                    unit: selectedDoseUnit,
+                    mealOption: selectedMealOption,
+                    instructions: commentController.text.isNotEmpty ? commentController.text : '',
+                  );
+                  context.push('/schedule', extra: treatment);
+                }
+              },
+              text: 'Continue',
+              size: ButtonSize.large,
+            ),
+          ),
+        ],
+      ),
+    ),
     );
   }
 
   bool _validateInput() {
-    String errorMessage = '';
+    bool isValid = true;
 
     if (nameController.text.isEmpty) {
-      errorMessage += 'Please enter a name for the treatment.\n';
+      setState(() => showNameError = true);
+      isValid = false;
+    } else {
+      setState(() => showNameError = false);
     }
 
     if (doseController.text.isEmpty) {
-      errorMessage += 'Please enter a dose for the treatment.\n';
+      setState(() => showDoseError = true);
+      isValid = false;
     } else {
       try {
         double.parse(doseController.text);
+        setState(() => showDoseError = false);
       } catch (e) {
-        errorMessage += 'Please enter a valid number for the dose.\n';
+        setState(() => showDoseError = true);
+        isValid = false;
       }
     }
 
-    if (errorMessage.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
-      );
-      return false;
-    }
-    return true;
+    return isValid;
   }
 }

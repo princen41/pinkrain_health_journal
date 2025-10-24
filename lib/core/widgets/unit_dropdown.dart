@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../theme/tokens.dart';
 
 class UnitDropdown extends StatelessWidget {
@@ -17,30 +19,56 @@ class UnitDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: height ?? 56,
-      padding: const EdgeInsets.symmetric(horizontal: 15),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          items: units.map((String unit) {
-            return DropdownMenuItem<String>(
-              value: unit,
-              child: Text(
-                unit,
-                style: const TextStyle(
-                  color: AppTokens.textPrimary,
-                  fontFamily: 'Outfit',
-                ),
+    return GestureDetector(
+      onTap: () async {
+        await showCupertinoModalPopup(
+          context: context,
+          builder: (BuildContext context) {
+            return Container(
+              height: 150,
+              color: Colors.white,
+              child: CupertinoPicker(
+                itemExtent: 50,
+                onSelectedItemChanged: (int index) {
+                  onChanged(units[index]);
+                },
+                children: units.map((String unit) {
+                  return Center(
+                    child: Text(
+                      unit,
+                      style: AppTokens.textStyleLarge,
+                    ),
+                  );
+                }).toList(),
               ),
             );
-          }).toList(),
-          onChanged: onChanged,
+          },
+        );
+        // Ensure keyboard doesn't appear after picker closes
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          FocusScope.of(context).unfocus();
+        });
+      },
+      child: Container(
+        height: height ?? 56,
+        padding: const EdgeInsets.symmetric(horizontal: 15),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Row(
+          children: [
+            Text(
+              value,
+              style: AppTokens.textStyleMedium,
+            ),
+            const Spacer(),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowDown01,
+              color: AppTokens.iconMuted,
+              size: 20,
+            ),
+          ],
         ),
       ),
     );

@@ -138,7 +138,10 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                       children: [
                         _buildTodayHeading(),
                         _buildMorningSection(),
+                        _buildNoonSection(),
+                        _buildAfternoonSection(),
                         _buildEveningSection(),
+                        _buildNightSection(),
                       ],
                     );
                   },
@@ -255,13 +258,13 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     final date = selectedDate;
     String headingText;
     if (date.day == DateTime.now().day) {
-      headingText = 'Today';
+      headingText = 'Today - ${getMonthName(date.month)} ${date.day}';
     } else if (date.day == DateTime.now().add(Duration(days: 1)).day) {
-      headingText = 'Tomorrow';
+      headingText = 'Tomorrow - ${getMonthName(date.month)} ${date.day}';
     } else if (date.day == DateTime.now().subtract(Duration(days: 1)).day) {
-      headingText = 'Yesterday';
+      headingText = 'Yesterday - ${getMonthName(date.month)} ${date.day}';
     } else {
-      headingText = '${getWeekdayName(date.weekday)}, ${date.day}';
+      headingText = '${getWeekdayName(date.weekday)}, ${getMonthName(date.month)} ${date.day}';
     }
 
     return Column(
@@ -626,7 +629,6 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   }
 
   Widget _buildMorningSection() {
-    final date = selectedDate;
     final List<IntakeLog> medications = medList.forMorning();
 
     return medications.isEmpty
@@ -634,9 +636,49 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader(
-                  'Morning - ${date.day.ordinal()} ${getMonthName(date.month)}',
-                  Icons.wb_sunny_outlined),
+              _buildSectionHeader('Morning', '⏰'),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: medications.length,
+                itemBuilder: (context, index) {
+                  return _buildMedicationItem(medications[index]);
+                },
+              ),
+            ],
+          );
+  }
+
+  Widget _buildNoonSection() {
+    final List<IntakeLog> medications = medList.forNoon();
+
+    return medications.isEmpty
+        ? SizedBox()
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader('Noon', '☀️'),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: medications.length,
+                itemBuilder: (context, index) {
+                  return _buildMedicationItem(medications[index]);
+                },
+              ),
+            ],
+          );
+  }
+
+  Widget _buildAfternoonSection() {
+    final List<IntakeLog> medications = medList.forAfternoon();
+
+    return medications.isEmpty
+        ? SizedBox()
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader('Afternoon', '🌤️'),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -650,7 +692,6 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   }
 
   Widget _buildEveningSection() {
-    final date = selectedDate;
     final List<IntakeLog> medications = medList.forEvening();
 
     return medications.isEmpty
@@ -658,9 +699,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader(
-                  'Evening - ${date.day.ordinal()} ${getMonthName(date.month)}',
-                  Icons.nights_stay_outlined),
+              _buildSectionHeader('Evening', '🌙'),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -673,22 +712,35 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           );
   }
 
-  Padding _buildSectionHeader(String title, IconData icon) {
-    // Get emoji based on icon
-    String emoji = '';
-    if (icon == Icons.wb_sunny_outlined) {
-      emoji = '☀️'; // Sun emoji for morning
-    } else if (icon == Icons.nights_stay_outlined) {
-      emoji = '🌙'; // Moon emoji for evening
-    }
+  Widget _buildNightSection() {
+    final List<IntakeLog> medications = medList.forNight();
 
+    return medications.isEmpty
+        ? SizedBox()
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader('Night', '🌑'),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: medications.length,
+                itemBuilder: (context, index) {
+                  return _buildMedicationItem(medications[index]);
+                },
+              ),
+            ],
+          );
+  }
+
+  Padding _buildSectionHeader(String title, String emoji) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Row(
         children: [
           Text(
             emoji,
-            style: TextStyle(fontSize: 20),
+            style: TextStyle(fontSize: 24),
           ),
           SizedBox(width: 10),
           Text(
@@ -715,6 +767,17 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
       type = type.substring(0, type.length - 1);
     }
 
+    // Parse bicolore colors for capsules
+    String primaryColor = color;
+    String? secondaryColor;
+    if (type == 'capsule' && color.contains('&')) {
+      final parts = color.split('&');
+      if (parts.length == 2) {
+        primaryColor = parts[0].trim();
+        secondaryColor = parts[1].trim();
+      }
+    }
+
     return InkWell(
       onTap: () => _showMedicationDetails(medicineLog),
       child: Padding(
@@ -725,7 +788,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                    width: 40, height: 40, child: futureBuildSvg(type, color)),
+                    width: 40, height: 40, child: futureBuildSvg(type, primaryColor, 40, secondaryColor)),
                 if (isTaken)
                   Positioned(
                     right: 0,
@@ -811,98 +874,74 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   }
 
   void _showAddPopup(BuildContext context) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+        return Container(
+          decoration: BoxDecoration(
+            color: AppTokens.bgPrimary,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          child: Container(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'What do you want to add?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: AppTokens.fontWeightBold,
-                    color: AppTokens.textPrimary,
-                  ),
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTokens.borderLight,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                SizedBox(height: 20),
-                _buildOptionButton(
-                  icon: appImage('medicine', size: 30),
+              ),
+              SizedBox(height: 20),
+              
+              Text(
+                'What do you want to add?',
+                textAlign: TextAlign.center,
+                style: AppTokens.textStyleLarge.copyWith(
+                  fontWeight: AppTokens.fontWeightBold,
+                ),
+              ),
+              SizedBox(height: 30),
+              
+              SizedBox(
+                width: double.infinity,
+                child: Button.primary(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context.push('/new_treatment');
+                  },
                   text: 'New treatment',
-                  onTap: () {
-                    Navigator.of(context).pop(); // Close the dialog
-                    context.push(
-                        '/new_treatment'); // Navigate to new treatment screen
-                  },
+                  size: ButtonSize.large,
+                  leadingIcon: appVectorImage(fileName: 'treatment', size: 28),
                 ),
-                SizedBox(height: 10),
-                _buildOptionButton(
-                  icon: appImage('one-time-medicine', size: 30),
+              ),
+              SizedBox(height: 12),
+              
+              SizedBox(
+                width: double.infinity,
+                child: Button.secondary(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context.push('/one_time_take');
+                  },
                   text: 'One-time take',
-                  onTap: () {
-                    Navigator.of(context).pop(); // Close the dialog
-                    context.push(
-                        '/new_treatment'); // Navigate to new treatment screen
-                  },
+                  size: ButtonSize.large,
+                  leadingIcon: appVectorImage(fileName: 'pills', size: 28),
+                  borderWidth: 0,
                 ),
-                SizedBox(height: 20),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.red[300],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildOptionButton({
-    required Widget icon,
-    required String text,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300] ?? Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icon,
-            SizedBox(width: 15),
-            Text(
-              text,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: AppTokens.fontWeightW500,
-                color: AppTokens.textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showMedicationDetails(IntakeLog medicineLog) {
     final medication = medicineLog.treatment;
@@ -941,7 +980,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
               ),
               SizedBox(height: 20),
               _buildInfoItem(
-                  '${medication.medicine.color.capitalize()} ${medication.medicine.type}'),
+                  _getColorDescription(medication.medicine.color, medication.medicine.type)),
               _buildInfoItem(medication.treatmentPlan.mealOption.isNotEmpty
                   ? medication.treatmentPlan.mealOption
                   : 'Take as directed'),
@@ -1191,6 +1230,18 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
         );
       },
     );
+  }
+
+  String _getColorDescription(String color, String type) {
+    // Check if the color string contains bicolore information
+    // This is a simple approach - in a real implementation, you'd want to store secondary colors properly
+    if (type.toLowerCase() == 'capsule' && color.contains('&')) {
+      // If color contains '&', it means it's bicolore (e.g., "Blue & Pink")
+      return '${color.capitalize()} $type';
+    } else {
+      // Regular single color
+      return '${color.capitalize()} $type';
+    }
   }
 
   Widget _buildInfoItem(String text) {
