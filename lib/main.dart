@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/navigation/router.dart';
 import 'core/services/hive_service.dart';
 import 'core/services/disclaimer_service.dart';
+import 'core/theme/app_theme.dart';
 import 'features/treatment/services/daily_reset_service.dart';
 import 'features/treatment/services/medication_notification_service.dart';
 
@@ -39,26 +40,8 @@ class MyApp extends ConsumerWidget{
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       themeMode: ThemeMode.light, // This will use the device's theme settings
-      theme: ThemeData(
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'Outfit',
-        primarySwatch: Colors.pink,
-        textTheme: Theme.of(context).textTheme.apply(
-          bodyColor: Colors.black,
-          displayColor: Colors.black,
-        ),
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.black,
-        fontFamily: 'Outfit',
-        primarySwatch: Colors.pink,
-        textTheme: Theme.of(context).textTheme.apply(
-          bodyColor: Colors.white,
-          displayColor: Colors.white,
-        ),
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
     );
   }
 }

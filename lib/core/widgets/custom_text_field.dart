@@ -9,6 +9,7 @@ class CustomTextField extends StatelessWidget {
   final String? errorText;
   final VoidCallback? onChanged;
   final bool isNumberField;
+  final bool autofocus;
 
   const CustomTextField({
     super.key,
@@ -18,12 +19,14 @@ class CustomTextField extends StatelessWidget {
     this.errorText,
     this.onChanged,
     this.isNumberField = false,
+    this.autofocus = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      autofocus: autofocus,
       cursorColor: AppTokens.cursor,
       keyboardType: isNumberField 
           ? (Platform.isIOS 
@@ -45,7 +48,9 @@ class CustomTextField extends StatelessWidget {
           color: AppTokens.stateError,
           fontSize: 12,
         ),
+        labelStyle: const TextStyle(color: AppTokens.textPrimary),
       ),
+      style: AppTokens.textStyleMedium,
       onChanged: onChanged != null ? (_) => onChanged!() : null,
     );
   }

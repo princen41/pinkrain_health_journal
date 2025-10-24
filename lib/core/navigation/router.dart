@@ -33,13 +33,31 @@ final List<GoRoute> routes = [
   GoRoute(
       path: '/schedule',
       builder: (context, state) {
-        final treatment = state.extra as Treatment;
+        Treatment treatment;
+        if (state.extra is Treatment) {
+          treatment = state.extra as Treatment;
+        } else if (state.extra is Map<String, dynamic>) {
+          // Convert Map to Treatment object
+          treatment = Treatment.fromJson(state.extra as Map<String, dynamic>);
+        } else {
+          // Fallback - create a default treatment
+          throw Exception('Invalid treatment data passed to schedule screen');
+        }
         return ScheduleScreen(treatment: treatment);
       }),
   GoRoute(
     path: '/duration',
     builder: (context, state) {
-      final treatment = state.extra as Treatment;
+      Treatment treatment;
+      if (state.extra is Treatment) {
+        treatment = state.extra as Treatment;
+      } else if (state.extra is Map<String, dynamic>) {
+        // Convert Map to Treatment object
+        treatment = Treatment.fromJson(state.extra as Map<String, dynamic>);
+      } else {
+        // Fallback - create a default treatment
+        throw Exception('Invalid treatment data passed to duration screen');
+      }
       return DurationScreen(treatment: treatment);
     },
   ),
@@ -62,7 +80,16 @@ final List<GoRoute> routes = [
   GoRoute(
       path: '/edit_treatment',
       builder: (context, state) {
-        final treatment = state.extra as Treatment;
+        Treatment treatment;
+        if (state.extra is Treatment) {
+          treatment = state.extra as Treatment;
+        } else if (state.extra is Map<String, dynamic>) {
+          // Convert Map to Treatment object
+          treatment = Treatment.fromJson(state.extra as Map<String, dynamic>);
+        } else {
+          // Fallback - create a default treatment
+          throw Exception('Invalid treatment data passed to edit treatment screen');
+        }
         return EditTreatmentScreen(treatment: treatment);
       }),
 ];

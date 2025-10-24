@@ -21,7 +21,9 @@ class Button {
     double borderRadius = 12,
     Color textColor = AppTokens.textPrimary,
     Color backgroundColor = AppColors.pink100,
-    Color borderColor = AppTokens.borderLight
+    Color borderColor = AppTokens.borderLight,
+    Widget? leadingIcon,
+    Widget? trailingIcon,
   }) {
     final buttonPadding = padding ?? _getPaddingForSize(size);
     final buttonFontSize = _getFontSizeForSize(size, fontSize);
@@ -37,6 +39,8 @@ class Button {
       fontFamily: fontFamily,
       padding: buttonPadding,
       borderRadius: borderRadius,
+      leadingIcon: leadingIcon,
+      trailingIcon: trailingIcon,
     );
   }
 
@@ -53,6 +57,8 @@ class Button {
     Color backgroundColor = AppTokens.buttonSecondaryBg,
     Color borderColor = AppTokens.borderLight,
     double borderWidth = 1.5,
+    Widget? leadingIcon,
+    Widget? trailingIcon,
   }) {
     final buttonPadding = padding ?? _getPaddingForSize(size);
     final buttonFontSize = _getFontSizeForSize(size, fontSize);
@@ -68,6 +74,8 @@ class Button {
       fontFamily: fontFamily,
       padding: buttonPadding,
       borderRadius: borderRadius,
+      leadingIcon: leadingIcon,
+      trailingIcon: trailingIcon,
     );
   }
 
@@ -84,6 +92,8 @@ class Button {
     Color backgroundColor = AppTokens.buttonSecondaryBg,
     Color borderColor = AppTokens.borderLight,
     double borderWidth = 0,
+    Widget? leadingIcon,
+    Widget? trailingIcon,
   }) {
     final buttonPadding = padding ?? _getPaddingForSize(size);
     final buttonFontSize = _getFontSizeForSize(size, fontSize);
@@ -99,6 +109,8 @@ class Button {
       fontFamily: fontFamily,
       padding: buttonPadding,
       borderRadius: borderRadius,
+      leadingIcon: leadingIcon,
+      trailingIcon: trailingIcon,
     );
   }
 
@@ -114,7 +126,46 @@ class Button {
     required String fontFamily,
     required EdgeInsets padding,
     required double borderRadius,
+    Widget? leadingIcon,
+    Widget? trailingIcon,
   }) {
+    Widget child;
+    
+    if (leadingIcon != null || trailingIcon != null) {
+      child = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (leadingIcon != null) ...[
+            leadingIcon,
+            const SizedBox(width: 8),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: fontWeight,
+              fontFamily: fontFamily,
+              color: textColor,
+            ),
+          ),
+          if (trailingIcon != null) ...[
+            const SizedBox(width: 8),
+            trailingIcon,
+          ],
+        ],
+      );
+    } else {
+      child = Text(
+        text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          fontFamily: fontFamily,
+          color: textColor,
+        ),
+      );
+    }
+
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
@@ -129,15 +180,7 @@ class Button {
           ),
         ),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          fontFamily: fontFamily,
-          color: textColor,
-        ),
-      ),
+      child: child,
     );
   }
 

@@ -227,7 +227,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                               ? AppTokens.textInvert
                               : AppTokens.textSecondary,
                           fontSize: 14,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: AppTokens.fontWeightW400,
                         ),
                       ),
                       Text(
@@ -237,7 +237,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                               ? AppTokens.textInvert
                               : AppTokens.textPrimary,
                           fontSize: 18,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: AppTokens.fontWeightW500,
                         ),
                       ),
                     ],
@@ -273,7 +273,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
             headingText,
             style: TextStyle(
               fontSize: 24,
-              fontWeight: FontWeight.bold,
+              fontWeight: AppTokens.fontWeightBold,
             ),
           ),
         ),
@@ -360,7 +360,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                             type: AnimationType.word,
                             textStyle: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: AppTokens.fontWeightBold,
                               color: AppTokens.textPrimary,
                             ),
                           ),
@@ -498,7 +498,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                 getMoodLabel(mood),
                 style: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: AppTokens.fontWeightBold,
                   color: AppTokens.textPrimary,
                 ),
               ),
@@ -693,11 +693,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           SizedBox(width: 10),
           Text(
             title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[600],
-            ),
+            style: AppTokens.textStyleLarge,
           ),
         ],
       ),
@@ -766,19 +762,17 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                 children: [
                   Text(
                     name,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                    style: AppTokens.textStyleMedium.copyWith(
                       decoration: (isTaken || isSkipped)
                           ? TextDecoration.lineThrough
                           : null,
-                      color: isSkipped ? Colors.red[600] : null,
+                      color: isSkipped ? Colors.red[600] : AppTokens.textPrimary,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     dosage,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    style: TextStyle(fontSize: 14, color: AppTokens.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -787,7 +781,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
             SizedBox(width: 10),
             Text(
               time,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              style: AppTokens.textStyleMedium,
             ),
             /*Icon(Icons.chevron_right, color: Colors.grey),*/
           ],
@@ -834,7 +828,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: AppTokens.fontWeightBold,
                     color: AppTokens.textPrimary,
                   ),
                 ),
@@ -900,8 +894,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
               text,
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[800],
+                fontWeight: AppTokens.fontWeightW500,
+                color: AppTokens.textPrimary,
               ),
             ),
           ],
@@ -983,7 +977,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                           isTaken ? 'Pill taken!' : 'Pill skipped!',
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: AppTokens.fontWeightW600,
                             color:
                                 isTaken ? Colors.green[700] : Colors.red[700],
                           ),
@@ -1117,7 +1111,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                 pillLogError ?? 'Pill taken!',
                 style: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: AppTokens.fontWeightBold,
                 ),
               ),
               SizedBox(height: 20),
@@ -1169,7 +1163,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                 'Pill skipped!',
                 style: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: AppTokens.fontWeightBold,
                 ),
               ),
               SizedBox(height: 20),
