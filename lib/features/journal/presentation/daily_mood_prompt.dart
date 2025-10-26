@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
@@ -66,35 +67,40 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
         final date = widget.date ?? DateTime.now();
         final dateKey = DateFormat('yyyy-MM-dd').format(date);
 
+        // Make sure the box is open before saving
+        if (!Hive.isBoxOpen(HiveService.moodBoxName)) {
+          await Hive.openBox(HiveService.moodBoxName);
+        }
+
+        final box = Hive.box(HiveService.moodBoxName);
+
         // Log what we're saving
         devPrint('Saving mood data for date: $dateKey');
         devPrint('Mood: $selectedMood, Description: ${_feelingsController.text}');
         devPrint('Is editing mode: ${widget.isEditing}');
 
-        // Add mood entry (appends to existing entries for the day)
-        await HiveService.addMoodEntryForDate(
-          date,
-          selectedMood,
-          _feelingsController.text,
-        );
+        // Save the mood data
+        await box.put('mood_$dateKey', {
+          'mood': selectedMood,
+          'description': _feelingsController.text,
+          'timestamp': DateTime.now()
+              .toIso8601String(), // Always use current timestamp for when it was recorded
+        });
 
-        // If it's the first entry of the day, mark it
+        // Save the user's current mood only if we're recording for today
         final today = DateTime.now();
         final isToday = date.year == today.year &&
             date.month == today.month &&
             date.day == today.day;
         if (isToday) {
-          final entries = await HiveService.getMoodEntriesForDate(date);
-          if (entries != null && entries.length == 1) {
-            // First entry of today, mark the date
-            await HiveService.setMoodEntryForToday();
-          }
+          await HiveService.saveUserMood(
+              selectedMood, _feelingsController.text);
         }
 
         // Verify the data was saved correctly
-        final savedEntries = await HiveService.getMoodEntriesForDate(date);
-        if (savedEntries != null && savedEntries.isNotEmpty) {
-          devPrint('Mood entries saved successfully. Total entries: ${savedEntries.length}');
+        final savedData = await HiveService.getMoodForDate(date);
+        if (savedData != null) {
+          devPrint('Mood data saved successfully: ${savedData['mood']}, ${savedData['description']}');
         } else {
           devPrint('Warning: Could not verify saved mood data');
         }

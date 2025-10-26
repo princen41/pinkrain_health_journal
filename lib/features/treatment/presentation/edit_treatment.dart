@@ -11,6 +11,7 @@ import 'package:pinkrain/core/theme/tokens.dart';
 import '../../../core/models/medicine_model.dart';
 import '../../../core/theme/icons.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/services/hive_service.dart';
 import '../../../features/journal/presentation/journal_notifier.dart';
 import '../data/treatment.dart';
 import '../domain/treatment_manager.dart';
@@ -440,60 +441,218 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     );
   }
 
+  Widget _buildDeleteOption(
+    BuildContext context,
+    String title,
+    String description,
+    String option,
+  ) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(option),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTokens.bgMuted,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: AppTokens.textStyleMedium.copyWith(
+                color: AppTokens.stateError,
+              ),
+            ),
+            Text(
+              description,
+              style: AppTokens.textStyleSmall.copyWith(
+                color: AppTokens.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDeleteButton() {
     return SizedBox(
       width: double.infinity,
       child: Button.destructive(
         onPressed: () async {
-          // Show confirmation dialog
-          final bool? shouldDelete = await showDialog<bool>(
+          // Show confirmation bottom modal
+          final String? deleteOption = await showModalBottomSheet<String>(
             context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
             builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Delete Treatment'),
-                content: Text(
-                  'Are you sure you want to delete "${widget.treatment.medicine.name}"? This action cannot be undone.',
+              return Container(
+                decoration: const BoxDecoration(
+                  color: AppTokens.bgPrimary,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.red,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Handle bar
+                        Center(
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: AppTokens.borderLight,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        // Title
+                        Text(
+                          'Delete Treatment',
+                          style: AppTokens.textStyleXLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        // Message
+                        Text(
+                          'Deleting a treatment is a permanent action and cannot be undone.',
+                          style: AppTokens.textStyleMedium.copyWith(
+                            color: AppTokens.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Delete options
+                        Column(
+                          children: [
+                            _buildDeleteOption(
+                              context,
+                              'Just this occurrence',
+                              'Remove "${widget.treatment.medicine.name}" only for this date',
+                              'just_today',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDeleteOption(
+                              context,
+                              'From this date onwards',
+                              'Stop "${widget.treatment.medicine.name}" starting from this date',
+                              'from_today',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDeleteOption(
+                              context,
+                              'All occurrences',
+                              'Permanently delete "${widget.treatment.medicine.name}"',
+                              'all',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        // Cancel button
+                        SizedBox(
+                          width: double.infinity,
+                          child: Button.secondary(
+                            onPressed: () => Navigator.of(context).pop(),
+                            text: 'Cancel',
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            borderWidth: 0,
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Text('Delete'),
                   ),
-                ],
+                ),
               );
             },
           );
 
-          if (shouldDelete == true) {
+          if (deleteOption != null && deleteOption.isNotEmpty) {
             try {
-              // Delete treatment from database
-              await treatmentManager.deleteTreatment(widget.treatment);
-
-              // Clear medication data caches to ensure refresh
-              if (mounted) {
-                // Refresh journal data
-                ref.invalidate(pillIntakeProvider);
+              final journalLog = ref.read(pillIntakeProvider.notifier).journalLog;
+              final selectedDate = ref.read(selectedDateProvider);
+              
+              if (deleteOption == 'just_today') {
+                // Remove the log entry for this treatment on the selected date
+                final existingLogs = await HiveService.getMedicationLogsForDate(selectedDate);
+                if (existingLogs != null && existingLogs.isNotEmpty) {
+                  final updatedLogs = existingLogs.where((log) {
+                    final treatmentId = log['treatment_id']?.toString() ?? '';
+                    return treatmentId != widget.treatment.id;
+                  }).toList();
+                  
+                  await HiveService.saveMedicationLogsForDate(selectedDate, updatedLogs);
+                }
                 
-                // Show success message and pop
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Treatment deleted successfully')),
+                journalLog.clearAllCachedMedicationLogs();
+                await journalLog.forceReloadMedicationLogs(selectedDate);
+                await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('This occurrence deleted')),
+                  );
+                  Navigator.of(context).pop(); // Close edit screen
+                  Navigator.of(context).pop(); // Close treatment overview modal
+                }
+              } else if (deleteOption == 'from_today') {
+                // End the treatment early (set endDate to day before selected date)
+                final updatedTreatment = Treatment(
+                  id: widget.treatment.id,
+                  medicine: widget.treatment.medicine,
+                  treatmentPlan: TreatmentPlan(
+                    startDate: widget.treatment.treatmentPlan.startDate,
+                    endDate: selectedDate.subtract(const Duration(days: 1)).normalize(),
+                    timeOfDay: widget.treatment.treatmentPlan.timeOfDay,
+                    mealOption: widget.treatment.treatmentPlan.mealOption,
+                    instructions: widget.treatment.treatmentPlan.instructions,
+                    frequency: widget.treatment.treatmentPlan.frequency,
+                    selectedDays: widget.treatment.treatmentPlan.selectedDays,
+                  ),
+                  notes: widget.treatment.notes,
                 );
+                await treatmentManager.updateTreatment(widget.treatment, updatedTreatment);
+                
+                journalLog.clearAllCachedMedicationLogs();
+                await journalLog.forceReloadMedicationLogs(selectedDate);
+                await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Treatment stopped from selected date')),
+                  );
+                  Navigator.of(context).pop(); // Close edit screen
+                  Navigator.of(context).pop(); // Close treatment overview modal
+                }
+              } else if (deleteOption == 'all') {
+                // Delete treatment completely
+                await treatmentManager.deleteTreatment(widget.treatment);
 
-                // Return to previous screen
-                Navigator.of(context).pop(true);
+                journalLog.clearAllCachedMedicationLogs();
+                await journalLog.forceReloadMedicationLogs(selectedDate);
+                await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Treatment deleted successfully')),
+                  );
+                  Navigator.of(context).pop(); // Close edit screen
+                  Navigator.of(context).pop(); // Close treatment overview modal
+                }
               }
             } catch (e) {
-              // Show error message
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error deleting treatment: $e')),
+                  SnackBar(content: Text('Error: $e')),
                 );
               }
             }
