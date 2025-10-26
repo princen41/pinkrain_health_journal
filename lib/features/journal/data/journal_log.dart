@@ -542,6 +542,26 @@ class JournalLog {
             "Created new log for ${treatment.medicine.name} with ID: ${treatment.id}");
       }
     }
+    
+    // Always check for new treatments that should be active on this date
+    // but weren't in the existing logs (regardless of whether we had existing logs or not)
+    devPrint("Checking for new treatments that should be active on ${date.toString().split(' ')[0]}");
+    final activeTreatments = treatmentManager.treatments.where((treatment) {
+      return treatment.treatmentPlan.shouldTakeOnDate(date);
+    }).toList();
+    
+    // Get the IDs of treatments already in updatedLogs
+    final existingTreatmentIds = updatedLogs.map((log) => log.treatment.id).toSet();
+    
+    // Add any new treatments that should be active but aren't in logs yet
+    for (final treatment in activeTreatments) {
+      if (!existingTreatmentIds.contains(treatment.id)) {
+        devPrint("Adding NEW treatment to date: ${treatment.medicine.name}");
+        final log = IntakeLog(treatment);
+        updatedLogs.add(log);
+        needsUpdate = true;
+      }
+    }
 
     // Update our in-memory store
     medicationLogs[date] = updatedLogs;

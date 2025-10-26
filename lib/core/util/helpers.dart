@@ -61,23 +61,33 @@ extension DateTimeExtensions on DateTime {
 
 extension ListExtensions on List<IntakeLog> {
   List<IntakeLog> forMorning() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 4 && t.treatment.treatmentPlan.timeOfDay.hour < 12).toList();
+    final list = where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 0 && t.treatment.treatmentPlan.timeOfDay.hour < 12).toList();
+    list.sort((a, b) => a.treatment.treatmentPlan.timeOfDay.compareTo(b.treatment.treatmentPlan.timeOfDay));
+    return list;
   }
 
   List<IntakeLog> forNoon() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 12 && t.treatment.treatmentPlan.timeOfDay.hour < 15).toList();
+    final list = where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 12 && t.treatment.treatmentPlan.timeOfDay.hour < 15).toList();
+    list.sort((a, b) => a.treatment.treatmentPlan.timeOfDay.compareTo(b.treatment.treatmentPlan.timeOfDay));
+    return list;
   }
 
   List<IntakeLog> forAfternoon() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 15 && t.treatment.treatmentPlan.timeOfDay.hour < 18).toList();
+    final list = where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 15 && t.treatment.treatmentPlan.timeOfDay.hour < 18).toList();
+    list.sort((a, b) => a.treatment.treatmentPlan.timeOfDay.compareTo(b.treatment.treatmentPlan.timeOfDay));
+    return list;
   }
 
   List<IntakeLog> forEvening() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 18 && t.treatment.treatmentPlan.timeOfDay.hour < 21).toList();
+    final list = where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 18 && t.treatment.treatmentPlan.timeOfDay.hour < 21).toList();
+    list.sort((a, b) => a.treatment.treatmentPlan.timeOfDay.compareTo(b.treatment.treatmentPlan.timeOfDay));
+    return list;
   }
 
   List<IntakeLog> forNight() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 21 || t.treatment.treatmentPlan.timeOfDay.hour < 4).toList();
+    final list = where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 21).toList();
+    list.sort((a, b) => a.treatment.treatmentPlan.timeOfDay.compareTo(b.treatment.treatmentPlan.timeOfDay));
+    return list;
   }
 }
 

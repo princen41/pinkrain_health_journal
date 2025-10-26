@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
 import 'package:pinkrain/core/util/helpers.dart';
 import 'package:pinkrain/features/journal/presentation/daily_mood_prompt.dart';
+import 'package:pinkrain/features/treatment/domain/treatment_manager.dart';
 import 'package:pretty_animated_text/pretty_animated_text.dart';
 
 import '../../../core/theme/colors.dart';
@@ -1074,71 +1076,148 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return Container(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          decoration: const BoxDecoration(
+            color: AppTokens.bgPrimary,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTokens.borderLight,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  // Title row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '$name • $dosage',
+                          style: AppTokens.textStyleXLarge,
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => context.push('/edit_treatment', extra: medication),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: HugeIcon(
+                            icon: HugeIcons.strokeRoundedEdit02,
+                            color: AppTokens.textSecondary,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Description
                   Text(
-                    '$name • $dosage',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    _getScheduleDescription(medication),
+                    style: AppTokens.textStyleMedium.copyWith(
+                      color: AppTokens.textSecondary,
+                    ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.edit, color: Colors.grey),
-                    onPressed: () =>
-                        context.push('/edit_treatment', extra: medication),
+                  const SizedBox(height: 24),
+                  Builder(
+                    builder: (context) {
+                      // Parse bicolore colors for capsules
+                      String colorString = medication.medicine.color;
+                      String primaryColor = colorString;
+                      String? secondaryColor;
+                      if (medication.medicine.type.toLowerCase() == 'capsule' && colorString.contains('&')) {
+                        final parts = colorString.split('&');
+                        if (parts.length == 2) {
+                          primaryColor = parts[0].trim();
+                          secondaryColor = parts[1].trim();
+                        }
+                      }
+                      
+                      return _buildInfoItemWithIcon(
+                        _getColorDescription(medication.medicine.color, medication.medicine.type),
+                        _getTreatmentTypeIcon(medication.medicine.type, primaryColor, secondaryColor: secondaryColor),
+                      );
+                    },
                   ),
-                ],
-              ),
-              SizedBox(height: 20),
-              _buildInfoItem(
-                  _getColorDescription(medication.medicine.color, medication.medicine.type)),
-              _buildInfoItem(medication.treatmentPlan.mealOption.isNotEmpty
-                  ? medication.treatmentPlan.mealOption
-                  : 'Take as directed'),
-              _buildInfoItem(medication.treatmentPlan.instructions.isNotEmpty
-                  ? medication.treatmentPlan.instructions
-                  : 'Try to take it at the same time each day'),
-              SizedBox(height: 20),
+                  const SizedBox(height: 8),
+                  Builder(
+                    builder: (context) {
+                      // Parse bicolore colors for meal option icons
+                      String colorString = medication.medicine.color;
+                      String primaryColor = colorString;
+                      String? secondaryColor;
+                      if (medication.medicine.type.toLowerCase() == 'capsule' && colorString.contains('&')) {
+                        final parts = colorString.split('&');
+                        if (parts.length == 2) {
+                          primaryColor = parts[0].trim();
+                          secondaryColor = parts[1].trim();
+                        }
+                      }
+                      
+                      final mealOption = medication.treatmentPlan.mealOption.isNotEmpty
+                          ? medication.treatmentPlan.mealOption
+                          : 'Never mind';
+                      
+                      return _buildInfoItemWithIcon(
+                        medication.treatmentPlan.mealOption.isNotEmpty
+                            ? _getMealOptionLabel(medication.treatmentPlan.mealOption)
+                            : 'No preference',
+                        _getMealOptionIcon(
+                          mealOption,
+                          primaryColor,
+                          secondaryColor: secondaryColor,
+                        ),
+                      );
+                    },
+                  ),
+                  if (medication.treatmentPlan.instructions.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _buildInfoItem(medication.treatmentPlan.instructions),
+                  ],
+                  const SizedBox(height: 24),
 
               // Show status if pill is taken or skipped, otherwise show action buttons
               if (isTaken || isSkipped) ...[
                 // Status display
                 Container(
                   width: double.infinity,
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isTaken ? Colors.green[50] : Colors.red[50],
+                    color: isTaken ? AppTokens.stateSuccess.withValues(alpha: 0.1) : AppTokens.stateError.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isTaken ? Colors.green[200]! : Colors.red[200]!,
-                      width: 1,
-                    ),
                   ),
                   child: Row(
                     children: [
                       Icon(
                         isTaken ? Icons.check_circle : Icons.cancel,
-                        color: isTaken ? Colors.green : Colors.red,
+                        color: isTaken ? AppTokens.stateSuccess : AppTokens.stateError,
                         size: 24,
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           isTaken ? 'Pill taken!' : 'Pill skipped!',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: AppTokens.fontWeightW600,
-                            color:
-                                isTaken ? Colors.green[700] : Colors.red[700],
+                          style: AppTokens.textStyleMedium.copyWith(
+                            color: isTaken ? AppTokens.stateSuccess : AppTokens.stateError,
                           ),
                         ),
                       ),
@@ -1166,8 +1245,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                     }
                   },
                   text: 'Cancel action',
-                  size: ButtonSize.small,
-                  borderRadius: 50,
+                  size: ButtonSize.large,
+                  borderWidth: 0,
                 ),
               ] else ...[
                 // Action buttons for untaken pills
@@ -1228,19 +1307,24 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Center(
                   child: TextButton(
                     onPressed: () {
-                      // Handle postpone action
                       Navigator.pop(context);
                     },
-                    child:
-                        Text('Postpone', style: TextStyle(color: Colors.grey)),
+                    child: Text(
+                      'Postpone',
+                      style: AppTokens.textStyleSmall.copyWith(
+                        color: AppTokens.textSecondary,
+                      ),
+                    ),
                   ),
                 ),
               ],
-            ],
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -1293,6 +1377,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                   ),
                 ),
               ),
+              SizedBox(height: 20),
             ],
           ),
         );
@@ -1364,17 +1449,161 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     }
   }
 
+  String _formatDuration(DateTime startDate, DateTime endDate) {
+    final duration = endDate.difference(startDate).inDays + 1;
+    if (duration == 1) {
+      return '1 day';
+    } else if (duration < 7) {
+      return '$duration days';
+    } else if (duration < 30) {
+      final weeks = (duration / 7).round();
+      return weeks == 1 ? '1 week' : '$weeks weeks';
+    } else {
+      final months = (duration / 30).round();
+      return months == 1 ? '1 month' : '$months months';
+    }
+  }
+
+  String _getScheduleDescription(Treatment medication) {
+    final time = medication.formattedTimeOfDay();
+    final duration = _formatDuration(
+        medication.treatmentPlan.startDate, medication.treatmentPlan.endDate);
+
+    // Get selected days
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final selectedDays = medication.treatmentPlan.selectedDays;
+    final activeDays = <String>[];
+    for (int i = 0; i < 7; i++) {
+      if (selectedDays[i]) {
+        activeDays.add(days[i]);
+      }
+    }
+
+    String daysStr;
+    if (activeDays.length == 7) {
+      daysStr = 'every day';
+    } else if (activeDays.length == 1) {
+      daysStr = activeDays[0];
+    } else if (activeDays.length <= 3) {
+      daysStr = activeDays.join(', ');
+    } else {
+      daysStr = '${activeDays.length} days/week';
+    }
+
+    return '$daysStr at $time for $duration';
+  }
+
   Widget _buildInfoItem(String text) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        children: [
-          Icon(Icons.check, color: Colors.green, size: 20),
-          SizedBox(width: 10),
-          Expanded(child: Text(text)),
-        ],
-      ),
+    return Row(
+      children: [
+        Icon(Icons.check, color: AppTokens.stateSuccess, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTokens.textStyleMedium.copyWith(
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  Widget _buildInfoItemWithIcon(String text, Widget iconWidget) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 48,
+          height: 48,
+          child: iconWidget,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTokens.textStyleMedium,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _getTreatmentTypeIcon(String type, String color, {String? secondaryColor}) {
+    final iconFile = type.toLowerCase();
+    final primaryColorValue = colorMap[color.trim()];
+    final secondaryColorValue = secondaryColor != null ? colorMap[secondaryColor.trim()] : null;
+    
+    if (primaryColorValue != null) {
+      return FutureBuilder<SvgPicture>(
+        future: appSvgDynamicImage(
+          fileName: iconFile,
+          size: 48,
+          color: primaryColorValue,
+          secondaryColor: secondaryColorValue,
+          useColorFilter: false,
+        ),
+        builder: (context, snapshot) {
+          return snapshot.data ?? appVectorImage(
+            fileName: iconFile,
+            size: 48,
+            color: primaryColorValue,
+            useColorFilter: false,
+          );
+        },
+      );
+    }
+    return appVectorImage(fileName: iconFile, size: 48);
+  }
+
+  Widget _getMealOptionIcon(String mealOption, String color, {String? secondaryColor}) {
+    // Map meal options to icon file names
+    String iconFile;
+    switch (mealOption.toLowerCase()) {
+      case 'before meal':
+        iconFile = 'before-meal';
+        break;
+      case 'after meal':
+        iconFile = 'after-meal';
+        break;
+      case 'with food':
+        iconFile = 'with-food';
+        break;
+      case 'never mind':
+      case 'no preference':
+      default:
+        iconFile = 'never-mind';
+        break;
+    }
+    
+    final primaryColorValue = colorMap[color.trim()];
+    final secondaryColorValue = secondaryColor != null ? colorMap[secondaryColor.trim()] : null;
+    
+    if (primaryColorValue != null) {
+      return FutureBuilder<SvgPicture>(
+        future: appSvgDynamicImage(
+          fileName: iconFile,
+          size: 48,
+          color: primaryColorValue,
+          secondaryColor: secondaryColorValue,
+          useColorFilter: false,
+        ),
+        builder: (context, snapshot) {
+          return snapshot.data ?? appVectorImage(
+            fileName: iconFile,
+            size: 48,
+            color: primaryColorValue,
+            useColorFilter: false,
+          );
+        },
+      );
+    }
+    return appVectorImage(fileName: iconFile, size: 48);
+  }
+
+  String _getMealOptionLabel(String mealOption) {
+    // Return a cleaner label
+    return mealOption.isNotEmpty ? mealOption : 'Take as directed';
   }
 
   Future<void> _refreshJournal() async {

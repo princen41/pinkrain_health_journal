@@ -30,6 +30,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   late TextEditingController nameController;
   late TextEditingController doseController;
   late TextEditingController commentController;
+  late TextEditingController durationController;
   late String selectedTreatmentType;
   late String selectedColor;
   late String? selectedSecondaryColor;
@@ -42,6 +43,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   late String selectedReminder;
   late List<bool> selectedDays;
   late int selectedDuration;
+  late String selectedDurationUnit;
   late DateTime startDate;
   late String selectedStartOption;
 
@@ -51,6 +53,15 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     nameController = TextEditingController(text: widget.treatment.medicine.name);
     doseController = TextEditingController(text: widget.treatment.medicine.specs.dosage.toString());
     commentController = TextEditingController(text: widget.treatment.notes);
+    final durationDays = widget.treatment.treatmentPlan.endDate.difference(widget.treatment.treatmentPlan.startDate).inDays + 1;
+    selectedDuration = durationDays;
+    durationController = TextEditingController(text: durationDays.toString());
+    durationController.addListener(() {
+      final intValue = int.tryParse(durationController.text);
+      if (intValue != null && intValue > 0) {
+        selectedDuration = intValue;
+      }
+    });
     selectedTreatmentType = widget.treatment.medicine.type;
     
     // Parse bicolore colors from stored color string
@@ -76,7 +87,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     doseControllers = {'Dose 1': TextEditingController(text: 'Dose 1')};
     selectedReminder = 'at time of event';
     selectedDays = List.from(widget.treatment.treatmentPlan.selectedDays);
-    selectedDuration = widget.treatment.treatmentPlan.endDate.difference(widget.treatment.treatmentPlan.startDate).inDays + 1;
+    selectedDurationUnit = 'days';
     startDate = widget.treatment.treatmentPlan.startDate;
     selectedStartOption = 'Select specific date';
   }
@@ -86,6 +97,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     nameController.dispose();
     doseController.dispose();
     commentController.dispose();
+    durationController.dispose();
     // Dispose all dose controllers
     for (var controller in doseControllers.values) {
       controller.dispose();
@@ -347,10 +359,26 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
               int minute = int.tryParse(timeParts[1]) ?? 0;
               DateTime timeOfDay = DateTime(2024, 1, 1, hour, minute);
 
+              // Convert duration based on selected unit
+              int durationInDays;
+              switch (selectedDurationUnit) {
+                case 'days':
+                  durationInDays = selectedDuration;
+                  break;
+                case 'weeks':
+                  durationInDays = selectedDuration * 7;
+                  break;
+                case 'months':
+                  durationInDays = selectedDuration * 30; // Approximate
+                  break;
+                default:
+                  durationInDays = selectedDuration;
+              }
+
               // Create updated treatment plan with schedule and duration data
               final updatedTreatmentPlan = TreatmentPlan(
                 startDate: startDate,
-                endDate: startDate.add(Duration(days: selectedDuration - 1)).normalize(),
+                endDate: startDate.add(Duration(days: durationInDays - 1)).normalize(),
                 timeOfDay: timeOfDay,
                 mealOption: selectedMealOption,
                 instructions: widget.treatment.treatmentPlan.instructions,
@@ -370,6 +398,11 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
               devPrint("Updating treatment - ID: ${widget.treatment.id}, Name: ${widget.treatment.medicine.name} → ${updatedTreatment.medicine.name}");
               devPrint("Treatment ID being used: ${updatedTreatment.id}");
               devPrint("Original dose: ${widget.treatment.medicine.specs.dosage} → New dose: ${updatedTreatment.medicine.specs.dosage}");
+              devPrint("Selected Days: $selectedDays");
+              devPrint("Days: [M, Tu, W, Th, F, Sa, Su]");
+              for (int i = 0; i < selectedDays.length; i++) {
+                devPrint("Day $i (${['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'][i]}): ${selectedDays[i]}");
+              }
               // Update treatment in database
               await treatmentManager.updateTreatment(widget.treatment, updatedTreatment);
 
@@ -382,24 +415,26 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   // Directly clear all cached medication logs
                   journalLog.clearAllCachedMedicationLogs();
 
-                  // Force reload of today's data
-                  final today = DateTime.now().normalize();
-                  await journalLog.forceReloadMedicationLogs(today);
+                  // Force reload ALL dates in the treatment range
+                  final startDate = updatedTreatment.treatmentPlan.startDate;
+                  final endDate = updatedTreatment.treatmentPlan.endDate;
+                  
+                  devPrint("Reloading logs for treatment range: $startDate to $endDate");
+                  
+                  // Reload all dates in the range (limited to reasonable range to avoid performance issues)
+                  DateTime currentDate = startDate;
+                  int daysLoaded = 0;
+                  while (!currentDate.isAfter(endDate) && daysLoaded < 365) { // Limit to 1 year for performance
+                    await journalLog.forceReloadMedicationLogs(currentDate);
+                    await journalLog.saveMedicationLogs(currentDate);
+                    currentDate = currentDate.add(const Duration(days: 1));
+                    daysLoaded++;
+                  }
+                  
+                  devPrint("Reloaded $daysLoaded days in treatment range");
 
                   // Get the currently selected date from the provider
                   final selectedDate = ref.read(selectedDateProvider);
-
-                  // If the selected date is different from today, reload that data too
-                  if (selectedDate.day != today.day || 
-                      selectedDate.month != today.month || 
-                      selectedDate.year != today.year) {
-                    devPrint("Also reloading data for selected date: ${selectedDate.toString()}");
-                    await journalLog.forceReloadMedicationLogs(selectedDate);
-                    await journalLog.saveMedicationLogs(selectedDate);
-                  }
-
-                  // Save the updated medication logs to ensure they're persisted
-                  await journalLog.saveMedicationLogs(today);
 
                   devPrint("All medication caches cleared!");
 
@@ -953,7 +988,6 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                       child: CupertinoDatePicker(
                         mode: CupertinoDatePickerMode.date,
                         initialDateTime: startDate,
-                        minimumDate: DateTime.now(),
                         dateOrder: DatePickerDateOrder.dmy,
                         onDateTimeChanged: (DateTime newDateTime) {
                           setState(() {
@@ -1005,13 +1039,10 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
             Expanded(
               flex: 2,
               child: CustomTextField(
-                controller: TextEditingController(text: selectedDuration.toString()),
+                controller: durationController,
                 hintText: 'Duration',
                 keyboardType: TextInputType.number,
                 isNumberField: true,
-                onChanged: () {
-                  // Handle duration changes
-                },
               ),
             ),
             const SizedBox(width: 12),
@@ -1019,33 +1050,44 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
               flex: 1,
               child: GestureDetector(
                 onTap: () async {
+                  String pickedUnit = selectedDurationUnit;
                   await showCupertinoModalPopup(
                     context: context,
                     builder: (BuildContext context) {
-                      return Container(
-                        height: 200,
-                        color: Colors.white,
-                        child: CupertinoPicker(
-                          itemExtent: 50,
-                          onSelectedItemChanged: (int index) {
-                            // Handle unit changes if needed
-                          },
-                          children: [
-                            'days',
-                            'weeks',
-                            'months',
-                          ].map((String value) {
-                            return Center(
-                              child: Text(
-                                value,
-                                style: AppTokens.textStyleLarge,
+                      return StatefulBuilder(
+                        builder: (context, setModalState) {
+                          return Container(
+                            height: 200,
+                            color: Colors.white,
+                            child: CupertinoPicker(
+                              itemExtent: 50,
+                              scrollController: FixedExtentScrollController(
+                                initialItem: ['days', 'weeks', 'months'].indexOf(selectedDurationUnit),
                               ),
-                            );
-                          }).toList(),
-                        ),
+                              onSelectedItemChanged: (int index) {
+                                pickedUnit = ['days', 'weeks', 'months'][index];
+                              },
+                              children: [
+                                'days',
+                                'weeks',
+                                'months',
+                              ].map((String value) {
+                                return Center(
+                                  child: Text(
+                                    value,
+                                    style: AppTokens.textStyleLarge,
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          );
+                        },
                       );
                     },
                   );
+                  setState(() {
+                    selectedDurationUnit = pickedUnit;
+                  });
                   // Ensure keyboard doesn't appear after picker closes
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     FocusScope.of(context).unfocus();
@@ -1061,7 +1103,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   child: Row(
                     children: [
                       Text(
-                        'days',
+                        selectedDurationUnit,
                         style: AppTokens.textStyleMedium,
                       ),
                       const Spacer(),
@@ -1082,7 +1124,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   }
 
   List<Widget> _buildDayButtons() {
-    final List<String> days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final List<String> days = ['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'];
     return List.generate(7, (index) {
       return Expanded(
         child: GestureDetector(

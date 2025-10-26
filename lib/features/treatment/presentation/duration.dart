@@ -26,9 +26,31 @@ class DurationScreen extends ConsumerStatefulWidget {
 class DurationScreenState extends ConsumerState<DurationScreen> {
   final List<bool> selectedDays = List.generate(7, (index) => false);
   int selectedDuration = 5;
+  late TextEditingController durationController;
+  String selectedDurationUnit = 'days';
   DateTime startDate = DateTime.now().add(const Duration(days: 1)).normalize();
   String selectedStartOption = 'tomorrow';
   final TreatmentManager treatmentManager = TreatmentManager();
+
+  @override
+  void initState() {
+    super.initState();
+    durationController = TextEditingController(text: selectedDuration.toString());
+    durationController.addListener(() {
+      final intValue = int.tryParse(durationController.text);
+      if (intValue != null && intValue > 0) {
+        setState(() {
+          selectedDuration = intValue;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    durationController.dispose();
+    super.dispose();
+  }
 
   // Helper function to format date as DD/MM/YYYY
   String _formatDate(DateTime date) {
@@ -36,7 +58,7 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
   }
 
   List<Widget> _buildDayButtons() {
-    final List<String> days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final List<String> days = ['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'];
     return List.generate(7, (index) {
       return Expanded(
         child: GestureDetector(
@@ -251,13 +273,10 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
             Expanded(
               flex: 2,
               child: CustomTextField(
-                controller: TextEditingController(text: selectedDuration.toString()),
+                controller: durationController,
                 hintText: 'Duration',
                 keyboardType: TextInputType.number,
                 isNumberField: true,
-                onChanged: () {
-                  // Handle duration changes
-                },
               ),
             ),
             const SizedBox(width: 12),
@@ -265,33 +284,44 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
               flex: 1,
               child: GestureDetector(
                 onTap: () async {
+                  String pickedUnit = selectedDurationUnit;
                   await showCupertinoModalPopup(
                     context: context,
                     builder: (BuildContext context) {
-                      return Container(
-                        height: 200,
-                        color: Colors.white,
-                        child: CupertinoPicker(
-                          itemExtent: 50,
-                          onSelectedItemChanged: (int index) {
-                            // Handle unit changes if needed
-                          },
-                          children: [
-                            'days',
-                            'weeks',
-                            'months',
-                          ].map((String value) {
-                            return Center(
-                              child: Text(
-                                value,
-                                style: AppTokens.textStyleLarge,
+                      return StatefulBuilder(
+                        builder: (context, setModalState) {
+                          return Container(
+                            height: 200,
+                            color: Colors.white,
+                            child: CupertinoPicker(
+                              itemExtent: 50,
+                              scrollController: FixedExtentScrollController(
+                                initialItem: ['days', 'weeks', 'months'].indexOf(selectedDurationUnit),
                               ),
-                            );
-                          }).toList(),
-                        ),
+                              onSelectedItemChanged: (int index) {
+                                pickedUnit = ['days', 'weeks', 'months'][index];
+                              },
+                              children: [
+                                'days',
+                                'weeks',
+                                'months',
+                              ].map((String value) {
+                                return Center(
+                                  child: Text(
+                                    value,
+                                    style: AppTokens.textStyleLarge,
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          );
+                        },
                       );
                     },
                   );
+                  setState(() {
+                    selectedDurationUnit = pickedUnit;
+                  });
                   // Ensure keyboard doesn't appear after picker closes
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     FocusScope.of(context).unfocus();
@@ -307,7 +337,7 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                   child: Row(
                     children: [
                       Text(
-                        'days',
+                        selectedDurationUnit,
                         style: AppTokens.textStyleMedium,
                       ),
                       const Spacer(),
@@ -353,9 +383,25 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
           Expanded(
             child: Button.primary(
               onPressed: () async {
+                // Convert duration based on selected unit
+                int durationInDays;
+                switch (selectedDurationUnit) {
+                  case 'days':
+                    durationInDays = selectedDuration;
+                    break;
+                  case 'weeks':
+                    durationInDays = selectedDuration * 7;
+                    break;
+                  case 'months':
+                    durationInDays = selectedDuration * 30; // Approximate
+                    break;
+                  default:
+                    durationInDays = selectedDuration;
+                }
+
                 widget.treatment.treatmentPlan.startDate = startDate;
                 widget.treatment.treatmentPlan.endDate =
-                    startDate.add(Duration(days: selectedDuration - 1)).normalize();
+                    startDate.add(Duration(days: durationInDays - 1)).normalize();
 
                 // Save the selected days - create a new TreatmentPlan with selectedDays
                 final updatedTreatment = Treatment.newTreatment(
@@ -367,7 +413,7 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                   unit: widget.treatment.medicine.specs.unit,
                   useCase: widget.treatment.medicine.specs.useCase,
                   startDate: startDate,
-                  endDate: startDate.add(Duration(days: selectedDuration - 1)).normalize(),
+                  endDate: startDate.add(Duration(days: durationInDays - 1)).normalize(),
                   mealOption: widget.treatment.treatmentPlan.mealOption,
                   instructions: widget.treatment.treatmentPlan.instructions,
                   frequency: widget.treatment.treatmentPlan.frequency,
@@ -378,13 +424,33 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                 updatedTreatment.treatmentPlan.timeOfDay = widget.treatment.treatmentPlan.timeOfDay;
                 
                 await treatmentManager.saveTreatment(updatedTreatment);
+                
+                // Reload treatments to ensure the new treatment is in memory
+                await treatmentManager.loadTreatments();
+                devPrint("Treatment saved, total count: ${treatmentManager.treatments.length}");
 
                 if (mounted) {
                   // Clear all cached medication logs to ensure new treatment appears on all relevant dates
                   final pillIntakeNotifier = ref.read(pillIntakeProvider.notifier);
-                  pillIntakeNotifier.journalLog.clearAllCachedMedicationLogs();
+                  final journalLog = pillIntakeNotifier.journalLog;
+                  journalLog.clearAllCachedMedicationLogs();
                   
-                  // Refresh the journal data for the current date
+                  // Force reload ALL dates in the treatment range
+                  devPrint("Reloading logs for treatment range: $startDate to ${startDate.add(Duration(days: durationInDays - 1))}");
+                  
+                  // Reload all dates in the range (limited to reasonable range to avoid performance issues)
+                  DateTime currentDate = startDate;
+                  int daysLoaded = 0;
+                  while (daysLoaded < durationInDays && daysLoaded < 365) { // Limit to 1 year for performance
+                    await journalLog.forceReloadMedicationLogs(currentDate);
+                    await journalLog.saveMedicationLogs(currentDate);
+                    currentDate = currentDate.add(const Duration(days: 1));
+                    daysLoaded++;
+                  }
+                  
+                  devPrint("Reloaded $daysLoaded days in treatment range");
+                  
+                  // Force reload of journal data
                   final selectedDate = ref.read(selectedDateProvider);
                   await pillIntakeNotifier.populateJournal(selectedDate, forceReload: true);
                   
