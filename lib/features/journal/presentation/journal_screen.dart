@@ -37,7 +37,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   @override
   void initState() {
     super.initState();
-    _dateScrollController = PageController(initialPage: 0);
+    // Initialize with offset of 1000 to allow scrolling to past weeks
+    _dateScrollController = PageController(initialPage: 1000);
     _pageController = PageController(initialPage: 1000);
 
     // Check for daily mood prompt with a delay
@@ -47,14 +48,6 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
 
     // Initialize the date selector
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      double targetScroll = MediaQuery.of(context).size.width / 5 * 2;
-
-      _dateScrollController.animateTo(
-        targetScroll,
-        duration: Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-
       // CRITICAL FIX: Initialize journal data for today's date
       _onPageChanged(1000);
     });
@@ -75,7 +68,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     selectedDateNotifier.setDate(newDate, ref);
 
     final weekIndex = getWeekIndex(newDate);
-    _dateScrollController.jumpToPage(weekIndex);
+    // Offset by 1000 to allow scrolling backwards (negative weeks)
+    _dateScrollController.jumpToPage(weekIndex + 1000);
   }
 
   // Check if it's the first launch of the day and show mood prompt
@@ -188,7 +182,10 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
       height: 90,
       child: PageView.builder(
         controller: _dateScrollController,
-        itemBuilder: (context, weekIndex) {
+        itemBuilder: (context, pageIndex) {
+          // Convert page index (offset by 1000) back to actual week index
+          final weekIndex = pageIndex - 1000;
+          
           // Get Monday of the current week, then shift by weekIndex
           DateTime today = DateTime.now();
           int daysToSubtract =
@@ -214,8 +211,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                       .difference(normalizeDate(DateTime.now()))
                       .inDays;
 
-                  final weekIndex = getWeekIndex(date);
-                  _dateScrollController.jumpToPage(weekIndex);
+                  final clickedWeekIndex = getWeekIndex(date);
+                  _dateScrollController.jumpToPage(clickedWeekIndex + 1000);
 
                   _pageController.animateToPage(
                     1000 + difference,
@@ -271,12 +268,23 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
 
   Widget _buildTodayHeading() {
     final date = selectedDate;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDateNormalized = DateTime(date.year, date.month, date.day);
+    final isToday = selectedDateNormalized == today;
+    
     String headingText;
-    if (date.day == DateTime.now().day) {
+    if (date.day == DateTime.now().day &&
+        date.month == DateTime.now().month &&
+        date.year == DateTime.now().year) {
       headingText = 'Today, ${getMonthName(date.month)} ${date.day}';
-    } else if (date.day == DateTime.now().add(Duration(days: 1)).day) {
+    } else if (date.day == DateTime.now().add(Duration(days: 1)).day &&
+               date.month == DateTime.now().month &&
+               date.year == DateTime.now().year) {
       headingText = 'Tomorrow, ${getMonthName(date.month)} ${date.day}';
-    } else if (date.day == DateTime.now().subtract(Duration(days: 1)).day) {
+    } else if (date.day == DateTime.now().subtract(Duration(days: 1)).day &&
+               date.month == DateTime.now().month &&
+               date.year == DateTime.now().year) {
       headingText = 'Yesterday, ${getMonthName(date.month)} ${date.day}';
     } else {
       headingText = '${getWeekdayName(date.weekday)}, ${getMonthName(date.month)} ${date.day}';
@@ -287,12 +295,51 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
       children: [
         Padding(
           padding: EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 10),
-          child: Text(
-            headingText,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: AppTokens.fontWeightBold,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  headingText,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: AppTokens.fontWeightBold,
+                  ),
+                ),
+              ),
+              if (!isToday)
+                Material(
+                  color: AppTokens.buttonPrimaryBg.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    onTap: () {
+                      // Navigate back to today
+                      final difference = normalizeDate(DateTime.now())
+                          .difference(normalizeDate(DateTime.now()))
+                          .inDays;
+                      
+                      _pageController.animateToPage(
+                        1000 + difference,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        'Today',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: AppTokens.fontWeightBold,
+                          color: const Color.fromARGB(255, 248, 159, 248),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         _buildMoodCard(date),
