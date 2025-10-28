@@ -624,8 +624,14 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                                   Navigator.pop(context);
                                   _showAddMoodDialog(date);
                                 },
-                                text: '+ Add Note',
+                                text: 'Add Note',
                                 size: ButtonSize.medium,
+                                leadingIcon: HugeIcon(
+                                  icon: HugeIcons.strokeRoundedAdd01,
+                                  size: 18,
+                                  strokeWidth: 2,
+                                  color: AppTokens.textPrimary,
+                                ),
                               ),
                             ),
                           ],

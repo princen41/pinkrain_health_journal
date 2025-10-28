@@ -46,6 +46,7 @@ GestureDetector buildNavItem(BuildContext context, String label, String route, b
     },
     child: Column(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
         decoration: BoxDecoration(
@@ -56,13 +57,13 @@ GestureDetector buildNavItem(BuildContext context, String label, String route, b
         padding: EdgeInsets.all(8),
         child: HugeIcon(
           icon: _getIconForRoute(route),
-          size: 21,
+          size: 19,
           strokeWidth: 1,
           color: isSelected ? AppTokens.textPrimary : AppTokens.textSecondary,
         )
         ),
-
-        Text(label),
+        SizedBox(height: 2),
+        Text(label, style: TextStyle(fontSize: 12)),
       ],
     ),
   );
