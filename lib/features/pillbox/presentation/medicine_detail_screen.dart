@@ -4,12 +4,214 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:http/http.dart' as http;
+import 'package:hugeicons/hugeicons.dart';
 import 'package:pinkrain/core/models/medicine_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // import '../data/pillbox_model.dart'; // removed unused import
 import '../../../core/util/helpers.dart';
+import '../../../core/widgets/index.dart';
+import '../../../core/theme/tokens.dart';
+import '../../../core/theme/colors.dart';
 import 'pillbox_notifier.dart';
+
+// Edit medicine dialog widget
+class _EditMedicineDialogContent extends StatefulWidget {
+  final MedicineInventory inventory;
+  final PillBoxNotifier notifier;
+  final VoidCallback onUpdate;
+
+  const _EditMedicineDialogContent({
+    required this.inventory,
+    required this.notifier,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_EditMedicineDialogContent> createState() => _EditMedicineDialogContentState();
+}
+
+class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> {
+  late TextEditingController nameController;
+  
+  late String selectedMedicationType;
+  late String selectedColor;
+  String? selectedSecondaryColor;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.inventory.medicine.name);
+    selectedMedicationType = widget.inventory.medicine.type;
+    
+    // Parse color for capsules (handle "Color1 & Color2" format)
+    String primaryColor = widget.inventory.medicine.color;
+    if (widget.inventory.medicine.type == 'Capsule' && primaryColor.contains('&')) {
+      final parts = primaryColor.split('&');
+      if (parts.length == 2) {
+        selectedColor = parts[0].trim();
+        selectedSecondaryColor = parts[1].trim();
+      } else {
+        selectedColor = primaryColor;
+      }
+    } else {
+      selectedColor = primaryColor;
+    }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      decoration: const BoxDecoration(
+        color: AppTokens.bgPrimary,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: AppTokens.borderLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Title
+              Text(
+                'Edit Medication',
+                style: AppTokens.textStyleXLarge,
+              ),
+              const SizedBox(height: 24),
+              // Medication Name
+              FormFieldLabel(text: 'Medication Name'),
+              CustomTextField(
+                controller: nameController,
+                hintText: 'Paracetamol',
+              ),
+              const SizedBox(height: 20),
+              // Medication Type
+              FormFieldLabel(text: 'Medication Type'),
+              ChipSelector(
+                options: ['Tablet', 'Capsule', 'Drops', 'Cream', 'Spray', 'Injection'],
+                selectedValue: selectedMedicationType,
+                onChanged: (type) {
+                  setState(() {
+                    selectedMedicationType = type;
+                  });
+                },
+                itemBuilder: (type, isSelected) => Column(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected
+                            ? AppTokens.buttonPrimaryBg
+                            : AppTokens.buttonSecondaryBg,
+                      ),
+                      child: futureBuildSvg(type, selectedColor, 40, selectedSecondaryColor),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      type,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'Outfit',
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isSelected
+                            ? AppTokens.textPrimary
+                            : AppTokens.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Color
+              ColorPicker(
+                selectedColor: selectedColor,
+                selectedSecondaryColor: selectedSecondaryColor,
+                onChanged: (color) {
+                  setState(() {
+                    selectedColor = color;
+                  });
+                },
+                onSecondaryChanged: (color) {
+                  setState(() {
+                    selectedSecondaryColor = color;
+                  });
+                },
+                isDuotone: selectedMedicationType == 'Capsule',
+              ),
+              const SizedBox(height: 32),
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                child: Button.primary(
+                  onPressed: () {
+                    if (nameController.text.trim().isEmpty) {
+                      return; // Don't save if name is empty
+                    }
+                    // Create color description for bicolore capsules
+                    String colorDescription = selectedColor;
+                    if (selectedMedicationType == 'Capsule' && selectedSecondaryColor != null) {
+                      colorDescription = '$selectedColor & $selectedSecondaryColor';
+                    }
+                    
+                    widget.notifier.updateMedicine(
+                      widget.inventory,
+                      nameController.text.trim(),
+                      selectedMedicationType,
+                      colorDescription,
+                    );
+                    Navigator.of(context).pop();
+                    widget.onUpdate();
+                  },
+                  text: 'Save',
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Cancel button
+              SizedBox(
+                width: double.infinity,
+                child: Button.secondary(
+                  onPressed: () => Navigator.of(context).pop(),
+                  text: 'Cancel',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class MedicineDetailScreen extends ConsumerStatefulWidget {
   final MedicineInventory inventory;
@@ -162,21 +364,49 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowLeft01,
+            size: 24,
+            strokeWidth: 1,
+            color: AppTokens.iconPrimary,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                medicine.name,
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              icon: HugeIcon(
+                icon: HugeIcons.strokeRoundedEdit02,
+                size: 24,
+                strokeWidth: 1,
+                color: AppTokens.iconPrimary,
               ),
-              SizedBox(height: 10),
+              onPressed: () async {
+                await _showEditMedicineDialog(context, notifier, inventory);
+                // Refresh the screen after editing
+                if (mounted) {
+                  setState(() {});
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      medicine.name,
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 10),
               Row(
                 children: [
                   Container(
@@ -303,17 +533,20 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                           ],
                         ),
                     SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         GestureDetector(
                           onTap: () {
                             final url = Uri.parse('https://en.wikipedia.org/wiki/${Uri.encodeComponent(medicine.name)}');
                             launchUrl(url, mode: LaunchMode.externalApplication);
                           },
-                          child: Text(
-                            'Learn more on Wikipedia >',
-                            style: TextStyle(color: Colors.blue),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'Learn more on Wikipedia >',
+                              style: TextStyle(color: Colors.blue),
+                            ),
                           ),
                         ),
                         GestureDetector(
@@ -332,59 +565,105 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                   ],
                 ),
               ),
-              SizedBox(height: 40),
-              Center(
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.red[50],
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.red[200]!),
-                    ),
-                  ),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: Text('Remove Medication', style: TextStyle(color: Colors.red[700])),
-                          backgroundColor: Colors.red[50],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            side: BorderSide(color: Colors.red[200]!, width: 1.5),
-                          ),
-                          content: Text(
-                            'Are you sure you want to remove ${medicine.name} from your pillbox?',
-                            style: TextStyle(color: Colors.grey[800]),
-                          ),
-                          actions: [
-                            TextButton(
-                              child: Text('Cancel', style: TextStyle(color: Colors.grey[700])),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                            ),
-                            TextButton(
-                              child: Text('Remove', style: TextStyle(color: Colors.red[700])),
-                              onPressed: () {
-                                notifier.removeMedicine(medicine);
-                                Navigator.of(context).pop();
-                                Navigator.of(context).pop();
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                  child: Text('Remove from Pill Box',
-                      style: TextStyle(color: Colors.red[700])),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+          // Remove button fixed at bottom
+          Container(
+            padding: const EdgeInsets.all(20.0),
+            decoration: BoxDecoration(
+              color: AppTokens.bgPrimary,
+            ),
+            child: SafeArea(
+              top: false,
+              child: Button.destructive(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (BuildContext context) {
+                      return Container(
+                        decoration: const BoxDecoration(
+                          color: AppTokens.bgPrimary,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                        ),
+                        child: SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Handle bar
+                                Center(
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 20),
+                                    width: 40,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: AppTokens.borderLight,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ),
+                                // Title
+                                Text(
+                                  'Remove Medication',
+                                  style: AppTokens.textStyleXLarge.copyWith(
+                                    color: AppTokens.stateError,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                // Message
+                                Text(
+                                  'Are you sure you want to remove ${medicine.name} from your pillbox?',
+                                  style: AppTokens.textStyleMedium.copyWith(
+                                    color: AppTokens.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                // Remove button
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: Button.destructive(
+                                    onPressed: () {
+                                      notifier.removeMedicine(medicine);
+                                      Navigator.of(context).pop(); // Close modal
+                                      Navigator.of(context).pop(); // Close detail screen
+                                    },
+                                    text: 'Remove',
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                // Cancel button
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: Button.secondary(
+                                    onPressed: () => Navigator.of(context).pop(),
+                                    text: 'Cancel',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                text: 'Remove from Pill Box',
+                borderRadius: 12,
+                borderWidth: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -393,96 +672,237 @@ void _showFillUpDialog(BuildContext context, PillBoxNotifier notifier, MedicineI
   int pillsChange = 0;
   bool isAdding = true;
 
-  showDialog(
+  showModalBottomSheet(
     context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
     builder: (BuildContext dialogContext) {
       return StatefulBuilder(
         builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text('Update Pills', style: TextStyle(color: Colors.pink[700])),
-            backgroundColor: Colors.pink[50],
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-              side: BorderSide(color: Colors.pink[200]!, width: 1.5),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(isAdding ? 'Add pills' : 'Remove pills'),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.remove),
-                      onPressed: () {
-                        setDialogState(() {
-                          if (pillsChange > 0) pillsChange--;
-                        });
-                      },
-                    ),
-                    Text('$pillsChange'),
-                    IconButton(
-                      icon: Icon(Icons.add),
-                      onPressed: () {
-                        setDialogState(() {
-                          pillsChange++;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: isAdding,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          isAdding = val ?? true;
-                        });
-                      },
-                    ),
-                    Text('Add'),
-                    Checkbox(
-                      value: !isAdding,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          isAdding = !(val ?? false);
-                        });
-                      },
-                    ),
-                    Text('Remove'),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                },
-                child: Text('Cancel'),
+          return Container(
+            decoration: const BoxDecoration(
+              color: AppTokens.bgPrimary,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
               ),
-              TextButton(
-                onPressed: () {
-                  final pillsLeft = inventory.quantity;
-                  int newPillCount;
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle bar
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppTokens.borderLight,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    // Title
+                    Text(
+                      'Update Pills',
+                      style: AppTokens.textStyleXLarge,
+                    ),
+                    const SizedBox(height: 24),
+                    // Mode selection (Add/Remove)
+                    Text(
+                      isAdding ? 'Add pills' : 'Remove pills',
+                      style: AppTokens.textStyleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setDialogState(() {
+                                isAdding = true;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isAdding ? AppColors.pink100 : AppTokens.buttonSecondaryBg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppTokens.borderLight,
+                                  width: isAdding ? 0 : 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Add',
+                                  style: AppTokens.textStyleMedium.copyWith(
+                                    color: isAdding ? AppTokens.textPrimary : AppTokens.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setDialogState(() {
+                                isAdding = false;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: !isAdding ? AppColors.pink100 : AppTokens.buttonSecondaryBg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppTokens.borderLight,
+                                  width: !isAdding ? 0 : 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Remove',
+                                  style: AppTokens.textStyleMedium.copyWith(
+                                    color: !isAdding ? AppTokens.textPrimary : AppTokens.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    // Quantity selector
+                    Text(
+                      'Quantity',
+                      style: AppTokens.textStyleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            setDialogState(() {
+                              if (pillsChange > 0) pillsChange--;
+                            });
+                          },
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: AppTokens.buttonSecondaryBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppTokens.borderLight,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.remove,
+                              color: pillsChange > 0 ? AppTokens.textPrimary : AppTokens.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 24),
+                        Text(
+                          '$pillsChange',
+                          style: AppTokens.textStyleXLarge,
+                        ),
+                        const SizedBox(width: 24),
+                        GestureDetector(
+                          onTap: () {
+                            setDialogState(() {
+                              pillsChange++;
+                            });
+                          },
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: AppTokens.buttonSecondaryBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppTokens.borderLight,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.add,
+                              color: AppTokens.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    // Update button
+                    SizedBox(
+                      width: double.infinity,
+                      child: Opacity(
+                        opacity: pillsChange == 0 ? 0.5 : 1.0,
+                        child: Button.primary(
+                          onPressed: pillsChange == 0
+                              ? () {} // No-op when disabled
+                              : () {
+                                  final pillsLeft = inventory.quantity;
+                                  int newPillCount;
 
-                  if (isAdding) {
-                    newPillCount = pillsLeft + pillsChange;
-                  } else {
-                    newPillCount = (pillsLeft - pillsChange).clamp(0, pillsLeft).toInt();
-                  }
-                  notifier.updateMedicineQuantity(inventory, newPillCount);
-                  safeSetState(() {}); // Refresh UI
-                  Navigator.of(dialogContext).pop();
-                },
-                child: Text('Update'),
+                                  if (isAdding) {
+                                    newPillCount = pillsLeft + pillsChange;
+                                  } else {
+                                    newPillCount = (pillsLeft - pillsChange).clamp(0, pillsLeft).toInt();
+                                  }
+                                  notifier.updateMedicineQuantity(inventory, newPillCount);
+                                  safeSetState(() {}); // Refresh UI
+                                  Navigator.of(dialogContext).pop();
+                                },
+                          text: 'Update',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Cancel button
+                    SizedBox(
+                      width: double.infinity,
+                      child: Button.secondary(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                        },
+                        text: 'Cancel',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           );
-        }
+        },
+      );
+    },
+  );
+}
+
+Future<void> _showEditMedicineDialog(BuildContext context, PillBoxNotifier notifier, MedicineInventory inventory) async {
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (BuildContext dialogContext) {
+      return _EditMedicineDialogContent(
+        inventory: inventory,
+        notifier: notifier,
+        onUpdate: () {
+          Navigator.of(dialogContext).pop();
+        },
       );
     },
   );

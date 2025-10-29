@@ -3,6 +3,7 @@ import 'package:intl/intl.dart'; // Import the intl package for DateFormat
 import 'package:pinkrain/core/util/helpers.dart';
 
 import '../data/journal_log.dart';
+import '../../pillbox/presentation/pillbox_notifier.dart';
 
 class SelectedDateNotifier extends StateNotifier<DateTime> {
   SelectedDateNotifier() : super(DateTime.now().normalize());
@@ -36,12 +37,25 @@ class PillIntakeNotifier extends StateNotifier<List<IntakeLog>> {
         forceReload: forceReload);
   }
 
-  Future<void> pillTaken(IntakeLog log, DateTime date) async {
+  Future<void> pillTaken(IntakeLog log, DateTime date, WidgetRef ref) async {
     log.isTaken = true;
     log.isSkipped = false; // Reset skip status when taken
 
     // Get the normalized date
     final normalizedDate = date.normalize();
+
+    // Update pillbox quantity if medication exists in pillbox
+    try {
+      final pillboxNotifier = ref.read(pillBoxProvider.notifier);
+      final medicineName = log.treatment.medicine.name;
+      final wasDecremented = pillboxNotifier.decrementMedicineQuantity(medicineName);
+      if (wasDecremented) {
+        devPrint('[PillIntakeNotifier] Decremented pillbox quantity for $medicineName');
+      }
+    } catch (e) {
+      devPrint('[PillIntakeNotifier] Error updating pillbox: $e');
+      // Don't fail the entire operation if pillbox update fails
+    }
 
     // Update state with a new list to trigger Riverpod listeners
     state = [...state];

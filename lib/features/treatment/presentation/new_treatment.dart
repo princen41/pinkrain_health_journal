@@ -2,21 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/util/helpers.dart';
 import '../../../core/widgets/index.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/colors.dart';
 import '../domain/treatment_manager.dart';
+import '../../pillbox/presentation/pillbox_notifier.dart';
+import '../../../core/models/medicine_model.dart';
 
-class NewTreatmentScreen extends StatefulWidget {
+class NewTreatmentScreen extends ConsumerStatefulWidget {
   const NewTreatmentScreen({super.key});
 
   @override
   NewTreatmentScreenState createState() => NewTreatmentScreenState();
 }
 
-class NewTreatmentScreenState extends State<NewTreatmentScreen> {
+class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
   final TreatmentManager treatmentManager = TreatmentManager();
 
   String selectedTreatmentType = 'Tablets';
@@ -32,6 +35,7 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
   // Validation state
   bool showNameError = false;
   bool showDoseError = false;
+  bool hideSuggestions = false;
 
   @override
   void dispose() {
@@ -91,11 +95,11 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 20),
+                        _buildNameField(),
+                        const SizedBox(height: 30),
                         _buildTreatmentTypeOptions(),
                         const SizedBox(height: 30),
                         _buildColorOptions(),
-                        const SizedBox(height: 30),
-                        _buildNameField(),
                         const SizedBox(height: 30),
                         _buildDoseField(),
                         const SizedBox(height: 30),
@@ -218,6 +222,20 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
   }
 
   Widget _buildNameField() {
+    // Watch pillbox to ensure widget rebuilds when pillbox changes
+    final pillbox = ref.watch(pillBoxProvider);
+    final medicationOptions = pillbox.pillStock
+        .map((inventory) => inventory.medicine.name)
+        .toSet()
+        .toList();
+    
+    // Filter suggestions based on current text
+    final filteredOptions = nameController.text.isEmpty || hideSuggestions
+        ? <String>[]
+        : medicationOptions
+            .where((option) => option.toLowerCase().contains(nameController.text.toLowerCase()))
+            .toList();
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -225,7 +243,136 @@ class NewTreatmentScreenState extends State<NewTreatmentScreen> {
         CustomTextField(
           controller: nameController,
           hintText: 'Enter medicine name',
+          onChanged: () {
+            setState(() {
+              hideSuggestions = false; // Show suggestions again when user types
+              if (nameController.text.isNotEmpty) {
+                showNameError = false;
+              }
+            });
+          },
         ),
+        // Show suggestions dropdown
+        if (filteredOptions.isNotEmpty && nameController.text.isNotEmpty && !hideSuggestions) ...[
+          const SizedBox(height: 8),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 200),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              shrinkWrap: true,
+              itemCount: filteredOptions.length,
+              separatorBuilder: (context, index) => Divider(
+                height: 1,
+                thickness: 1,
+                color: AppTokens.borderLight,
+                indent: 15,
+                endIndent: 15,
+              ),
+              itemBuilder: (BuildContext context, int index) {
+                final String option = filteredOptions[index];
+                // Find the inventory for this medication
+                MedicineInventory? inventory;
+                try {
+                  inventory = pillbox.pillStock.firstWhere(
+                    (item) => item.medicine.name == option,
+                  );
+                } catch (e) {
+                  inventory = null;
+                }
+                final quantity = inventory?.quantity ?? 0;
+                
+                return InkWell(
+                  onTap: () {
+                    nameController.text = option;
+                    
+                    // Find the medication in pillbox to get type and color
+                    MedicineInventory? inventory;
+                    try {
+                      inventory = pillbox.pillStock.firstWhere(
+                        (item) => item.medicine.name == option,
+                      );
+                    } catch (e) {
+                      inventory = null;
+                    }
+                    
+                    if (inventory != null) {
+                      final medicine = inventory.medicine;
+                      
+                      // Medicine.type already contains the treatment type (Tablet, Capsule, etc.)
+                      String treatmentType = medicine.type;
+                      
+                      // Validate treatment type is in the allowed list
+                      final allowedTypes = ['Tablet', 'Capsule', 'Drops', 'Cream', 'Spray', 'Injection'];
+                      if (!allowedTypes.contains(treatmentType)) {
+                        treatmentType = 'Tablet'; // Default fallback
+                      }
+                      
+                      // Parse color - handle "Color1 & Color2" format for capsules
+                      String primaryColor = medicine.color;
+                      String? secondaryColor;
+                      
+                      if (treatmentType == 'Capsule' && primaryColor.contains('&')) {
+                        final parts = primaryColor.split('&');
+                        if (parts.length == 2) {
+                          primaryColor = parts[0].trim();
+                          secondaryColor = parts[1].trim();
+                        }
+                      }
+                      
+                      setState(() {
+                        selectedTreatmentType = treatmentType;
+                        selectedColor = primaryColor;
+                        selectedSecondaryColor = secondaryColor;
+                        hideSuggestions = true; // Hide dropdown after selection
+                        showNameError = false;
+                      });
+                    } else {
+                      setState(() {
+                        hideSuggestions = true;
+                        showNameError = false;
+                      });
+                    }
+                    
+                    // Unfocus to dismiss keyboard
+                    FocusScope.of(context).unfocus();
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            option,
+                            style: AppTokens.textStyleMedium,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$quantity left',
+                          style: AppTokens.textStyleSmall.copyWith(
+                            color: AppTokens.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
         if (showNameError) ...[
           const SizedBox(height: 8),
           Text(

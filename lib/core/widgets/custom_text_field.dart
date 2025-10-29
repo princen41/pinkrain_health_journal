@@ -10,6 +10,8 @@ class CustomTextField extends StatelessWidget {
   final VoidCallback? onChanged;
   final bool isNumberField;
   final bool autofocus;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
 
   const CustomTextField({
     super.key,
@@ -20,6 +22,8 @@ class CustomTextField extends StatelessWidget {
     this.onChanged,
     this.isNumberField = false,
     this.autofocus = false,
+    this.prefixIcon,
+    this.suffixIcon,
   });
 
   @override
@@ -43,6 +47,24 @@ class CustomTextField extends StatelessWidget {
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.all(15),
+        prefixIcon: prefixIcon,
+        prefixIconConstraints: prefixIcon != null
+            ? const BoxConstraints(
+                minWidth: 48,
+                minHeight: 48,
+                maxWidth: 48,
+                maxHeight: 48,
+              )
+            : null,
+        suffixIcon: suffixIcon,
+        suffixIconConstraints: suffixIcon != null
+            ? const BoxConstraints(
+                minWidth: 48,
+                minHeight: 48,
+                maxWidth: 48,
+                maxHeight: 48,
+              )
+            : null,
         errorText: errorText,
         errorStyle: const TextStyle(
           color: AppTokens.stateError,

@@ -141,17 +141,38 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                     return MediaQuery.removePadding(
                       context: context,
                       removeTop: true,
-                      child: ListView(
-                        padding: EdgeInsets.only(bottom: 100),
-                        children: [
-                          _buildTodayHeading(),
-                          _buildMorningSection(),
-                          _buildNoonSection(),
-                          _buildAfternoonSection(),
-                          _buildEveningSection(),
-                          _buildNightSection(),
-                        ],
-                      ),
+                      child: medList.isEmpty
+                          ? Column(
+                              children: [
+                                _buildTodayHeading(),
+                                Expanded(
+                                  child: _buildEmptyState(),
+                                ),
+                              ],
+                            )
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                return SingleChildScrollView(
+                                  padding: EdgeInsets.only(bottom: 100),
+                                  physics: const ClampingScrollPhysics(),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minHeight: constraints.maxHeight,
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        _buildTodayHeading(),
+                                        _buildMorningSection(),
+                                        _buildNoonSection(),
+                                        _buildAfternoonSection(),
+                                        _buildEveningSection(),
+                                        _buildNightSection(),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                     );
                   },
                 ),
@@ -162,6 +183,37 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar:
           buildBottomNavigationBar(context: context, currentRoute: 'journal'),
+    );
+  }
+
+  // Build Empty State for no treatments
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            appVectorImage(
+              fileName: 'water',
+              size: 80,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No treatments for today!',
+              style: AppTokens.textStyleLarge,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "Don't forget to drink some water 💧",
+              style: AppTokens.textStyleMedium.copyWith(
+                color: AppTokens.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1043,8 +1095,12 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           width: 1, // border thickness
         ),
       ),
-      child: const Icon(Icons.add,
-          color: AppTokens.textPrimary), // This makes the button circular
+      child: HugeIcon(
+        icon: HugeIcons.strokeRoundedAdd01,
+        size: 24,
+        strokeWidth: 1,
+        color: AppTokens.iconPrimary,
+      ),
     );
   }
 
@@ -1343,7 +1399,10 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                           final pillIntakeNotifier =
                               ref.read(pillIntakeProvider.notifier);
                           await pillIntakeNotifier.pillTaken(
-                              medicineLog, selectedDate);
+                            medicineLog,
+                            selectedDate,
+                            ref,
+                          );
 
                           if (mounted && context.mounted) {
                             _showPillTakenDialog(context);

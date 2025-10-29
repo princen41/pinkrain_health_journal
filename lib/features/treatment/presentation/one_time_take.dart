@@ -196,11 +196,11 @@ class _OneTimeTakeScreenState extends ConsumerState<OneTimeTakeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 20),
+                        _buildNameField(),
+                        const SizedBox(height: 30),
                         _buildTreatmentTypeOptions(),
                         const SizedBox(height: 30),
                         _buildColorOptions(),
-                        const SizedBox(height: 30),
-                        _buildNameField(),
                         const SizedBox(height: 30),
                         _buildDoseField(),
                         const SizedBox(height: 30),
