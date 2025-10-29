@@ -606,6 +606,57 @@ class HiveService {
     }
     return [];
   }
+
+  /// Delete all user data from the device
+  /// This permanently deletes all stored data including:
+  /// - Mood entries
+  /// - Symptom data
+  /// - Medication logs
+  /// - Treatments
+  /// - Pillbox data
+  /// - User preferences (including name)
+  static Future<void> deleteAllData() async {
+    try {
+      devPrint('🗑️ Starting deletion of all user data...');
+      
+      // Delete all boxes from disk
+      final boxes = [
+        userPrefsBox,
+        moodBoxName,
+        symptomBoxName,
+        medicationLogsBoxName,
+        treatmentsBoxName,
+        pillboxBoxName,
+      ];
+      
+      for (final boxName in boxes) {
+        try {
+          // Close the box if it's open
+          if (Hive.isBoxOpen(boxName)) {
+            await Hive.box(boxName).close();
+          }
+          // Delete the box from disk
+          await Hive.deleteBoxFromDisk(boxName);
+          devPrint('✅ Deleted box: $boxName');
+        } catch (e) {
+          devPrint('⚠️ Error deleting box $boxName: $e');
+        }
+      }
+      
+      // Reinitialize boxes (they will be empty)
+      await _openBox(userPrefsBox);
+      await _openBox(moodBoxName);
+      await _openBox(symptomBoxName);
+      await _openBox(medicationLogsBoxName);
+      await _openBox(treatmentsBoxName);
+      await _openBox(pillboxBoxName);
+      
+      devPrint('✅ All user data deleted successfully');
+    } catch (e) {
+      devPrint('❌ Error deleting all data: $e');
+      rethrow;
+    }
+  }
 }
 
 /// Model class for symptom entries

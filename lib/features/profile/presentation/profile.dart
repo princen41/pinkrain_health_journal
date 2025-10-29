@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pinkrain/core/widgets/bottom_navigation.dart';
 import 'package:pinkrain/core/widgets/components.dart';
+import 'package:pinkrain/core/widgets/buttons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +13,8 @@ import 'package:pinkrain/core/services/hive_service.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
 import 'package:pinkrain/core/theme/colors.dart';
 import 'package:pinkrain/features/treatment/services/medication_notification_service.dart';
+import 'package:pinkrain/features/treatment/services/medication_scheduler_service.dart';
+import 'package:pinkrain/core/services/disclaimer_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'dart:io';
@@ -349,7 +352,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                   color: AppTokens.iconPrimary,
                 ),
               ),
-              _buildHelpTile('Delete Account and All Data'),
+              _buildHelpTile('Delete All Data'),
               SizedBox(height: 30),
               Center(
                 child: Padding(
@@ -392,7 +395,7 @@ class ProfileScreenState extends State<ProfileScreen> {
 
   // Help Tile (Get in Touch, Privacy Policy)
   Widget _buildHelpTile(String title) {
-    final bool isDelete = title=='Delete Account and All Data';
+    final bool isDelete = title == 'Delete All Data';
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(title,
@@ -406,7 +409,179 @@ class ProfileScreenState extends State<ProfileScreen> {
         strokeWidth: 1,
         color: AppTokens.iconPrimary,
       ),
-      onTap: () {},
+      onTap: isDelete ? () => _showDeleteAllDataModal() : () {},
+    );
+  }
+
+  // Show bottom modal for delete all data confirmation
+  void _showDeleteAllDataModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppTokens.bgPrimary,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTokens.borderLight,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  // Title
+                  Text(
+                    'Delete All Data',
+                    style: AppTokens.textStyleXLarge.copyWith(
+                      color: AppTokens.stateError,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Message
+                  Text(
+                    'This action cannot be undone.\n\n'
+                    'All your data will be permanently deleted from your device, including:\n'
+                    '• Mood entries\n'
+                    '• Symptom data\n'
+                    '• Medication logs\n'
+                    '• Treatments\n'
+                    '• Pillbox data\n'
+                    '• User preferences',
+                    style: AppTokens.textStyleMedium.copyWith(
+                      color: AppTokens.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Delete button
+                  SizedBox(
+                    width: double.infinity,
+                    child: Button.destructive(
+                      onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        navigator.pop(); // Close modal first
+                        
+                        if (!mounted) return;
+                        final navigatorState = Navigator.of(context);
+                        
+                        // Show loading indicator
+                        if (mounted) {
+                          showCupertinoDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const CupertinoAlertDialog(
+                              content: Padding(
+                                padding: EdgeInsets.only(top: 20.0),
+                                child: CupertinoActivityIndicator(),
+                              ),
+                            ),
+                          );
+                        }
+                        
+                        try {
+                          // Cancel all scheduled notifications
+                          final scheduler = MedicationSchedulerService();
+                          await scheduler.cancelAllNotifications();
+                          
+                          // Delete all Hive data
+                          await HiveService.deleteAllData();
+                          
+                          // Delete disclaimer data
+                          await DisclaimerService.deleteAllData();
+                          
+                          // Clear the name from controller
+                          _nameController.clear();
+                          
+                          // Close loading dialog
+                          if (!mounted) return;
+                          navigatorState.pop();
+                          
+                          // Show success message and navigate
+                          if (!mounted) return;
+                          showCupertinoDialog(
+                            context: this.context,
+                            builder: (context) => CupertinoAlertDialog(
+                              title: const Text('Data Deleted'),
+                              content: const Text(
+                                'All your data has been permanently deleted from your device.',
+                              ),
+                              actions: [
+                                CupertinoDialogAction(
+                                  isDefaultAction: true,
+                                  onPressed: () {
+                                    navigatorState.pop();
+                                    if (!mounted) return;
+                                    // Navigate to a fresh start (could be wellness or splash)
+                                    context.go('/wellness');
+                                  },
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        } catch (e) {
+                          devPrint('❌ Error deleting data: $e');
+                          // Close loading dialog
+                          if (!mounted) return;
+                          navigatorState.pop();
+                          
+                          // Show error message
+                          if (!mounted) return;
+                          showCupertinoDialog(
+                            context: this.context,
+                            builder: (context) => CupertinoAlertDialog(
+                              title: const Text('Error'),
+                              content: Text('Failed to delete data: $e'),
+                              actions: [
+                                CupertinoDialogAction(
+                                  isDefaultAction: true,
+                                  onPressed: () {
+                                    navigatorState.pop();
+                                  },
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                      text: 'Delete All Data',
+                      size: ButtonSize.large,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Cancel button
+                  SizedBox(
+                    width: double.infinity,
+                    child: Button.secondary(
+                      onPressed: () => Navigator.of(context).pop(),
+                      text: 'Cancel',
+                      size: ButtonSize.large,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

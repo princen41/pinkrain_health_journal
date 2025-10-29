@@ -19,22 +19,30 @@ class DisclaimerOverlay extends StatelessWidget {
     return Material(
       color: AppColors.black80.withValues(alpha: 0.7),
       child: SafeArea(
-        child: Center(
-          child: Container(
-            margin: const EdgeInsets.all(24),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTokens.bgPrimary,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.black40,
-                  blurRadius: 8,
-                  spreadRadius: 0,
-                  offset: const Offset(0, 4),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 500,
+                maxHeight: double.infinity,
+              ),
+              child: Container(
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 24,
                 ),
-              ],
-            ),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppTokens.bgPrimary,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.black40,
+                      blurRadius: 8,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -125,25 +133,28 @@ class DisclaimerOverlay extends StatelessWidget {
                   const SizedBox(height: 24),
                   
                   // Action buttons
-                  Row(
+                  Column(
                     children: [
-                      Expanded(
+                      SizedBox(
+                        width: double.infinity,
+                        child: Button.primary(
+                          onPressed: () => _onAccept(context),
+                          text: 'I Understand & Agree',
+                          fontSize: 16,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          size: ButtonSize.large,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
                         child: Button.secondary(
                           onPressed: () => _onDecline(context),
                           text: 'I Do Not Agree',
                           fontSize: 16,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           textColor: AppTokens.stateError,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 2,
-                        child: Button.primary(
-                          onPressed: () => _onAccept(context),
-                          text: 'I Understand & Agree',
-                          fontSize: 16,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          size: ButtonSize.large,
                         ),
                       ),
                     ],
@@ -164,6 +175,7 @@ class DisclaimerOverlay extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
             ),
           ),
         ),
@@ -227,7 +239,7 @@ class DisclaimerOverlay extends StatelessWidget {
             ),
           ),
           content: Text(
-            'You must accept the disclaimer to use this app. Would you like to exit?',
+            'You must accept the disclaimer to use this app. What would you like to do?',
             style: TextStyle(
               fontFamily: 'Outfit',
               color: AppColors.black80,
@@ -240,23 +252,19 @@ class DisclaimerOverlay extends StatelessWidget {
               fontSize: 14,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-            const SizedBox(width: 8),
-            Button.secondary(
-              onPressed: () {
-                // Close the app
-                if (Platform.isAndroid) {
+            if (Platform.isAndroid) ...[
+              const SizedBox(width: 8),
+              Button.secondary(
+                onPressed: () {
+                  // Close the app (Android only)
                   SystemNavigator.pop();
-                } else if (Platform.isIOS) {
-                  // iOS doesn't allow programmatic app termination
-                  // The user will need to manually close the app
-                  Navigator.of(context).pop();
-                }
-              },
-              text: 'Exit App',
-              fontSize: 14,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              textColor: AppTokens.stateError,
-            ),
+                },
+                text: 'Exit App',
+                fontSize: 14,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                textColor: AppTokens.stateError,
+              ),
+            ],
           ],
         );
       },

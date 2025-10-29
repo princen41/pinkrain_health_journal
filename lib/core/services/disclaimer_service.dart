@@ -25,4 +25,19 @@ class DisclaimerService {
   static Future<void> resetDisclaimer() async {
     await _box?.delete(_disclaimerAcceptedKey);
   }
+
+  /// Delete all disclaimer data (for account deletion)
+  static Future<void> deleteAllData() async {
+    try {
+      if (_box != null && _box!.isOpen) {
+        await _box!.close();
+      }
+      await Hive.deleteBoxFromDisk(_disclaimerBoxName);
+      // Reinitialize empty box
+      _box = await Hive.openBox(_disclaimerBoxName);
+    } catch (e) {
+      // Box might not exist, which is fine
+      _box = await Hive.openBox(_disclaimerBoxName);
+    }
+  }
 }
