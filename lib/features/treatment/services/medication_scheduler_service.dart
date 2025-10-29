@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:hive/hive.dart';
 import 'package:pinkrain/core/util/helpers.dart';
 import 'package:pinkrain/features/journal/data/journal_log.dart';
@@ -103,8 +104,8 @@ class MedicationSchedulerService {
           final reminderNotificationId = _generateNotificationId();
           await _scheduleNotification(
             id: reminderNotificationId,
-            title: 'Upcoming Medication',
-            body: 'Remember to take ${medication.treatment.medicine.name} in $reminderOffsetMinutes minutes',
+            title: '${medication.treatment.medicine.name} in $reminderOffsetMinutes minutes... 💊',
+            body: 'Don\'t forget to take your medication!',
             scheduledTime: reminderTime,
             payload: {
               'medicationId': medicationId,
@@ -129,8 +130,8 @@ class MedicationSchedulerService {
         // Schedule the main notification at the exact time
         await _scheduleNotification(
           id: notificationId,
-          title: 'Medication Due',
-          body: 'Time to take ${medication.treatment.medicine.name}',
+          title: 'Take your ${medication.treatment.medicine.name}',
+          body: '⏳ Time for your medication!',
           scheduledTime: scheduledTime,
           payload: {
             'medicationId': medicationId,
@@ -212,6 +213,8 @@ class MedicationSchedulerService {
       }
 
       // Schedule the notification
+      // This works on both iOS and Android - iOS uses DarwinNotificationDetails
+      // with presentAlert: true, presentBadge: true, presentSound: true
       await _notificationService.schedulePillReminder(
         id,
         title,
@@ -221,6 +224,9 @@ class MedicationSchedulerService {
       );
       
       devPrint('✅ Scheduled notification: $title for $scheduledTime');
+      if (Platform.isIOS) {
+        devPrint('📱 iOS: Notification scheduled and will appear on lock screen/notification center');
+      }
     } catch (e) {
       devPrint('❌ Error scheduling notification: $e');
     }

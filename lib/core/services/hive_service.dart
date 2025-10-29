@@ -15,6 +15,7 @@ class HiveService {
   static const String lastMoodDateKey = 'lastMoodDate';
   static const String userMoodKey = 'userMood';
   static const String userMoodDescriptionKey = 'userMoodDescription';
+  static const String userNameKey = 'userName';
 
   /// Initialize Hive
   static Future<void> init() async {
@@ -111,6 +112,27 @@ class HiveService {
       return await box.get(userMoodDescriptionKey, defaultValue: '');
     } catch (e) {
       devPrint('Error getting user mood description: $e');
+      return ''; // Default to empty string
+    }
+  }
+
+  /// Save user name
+  static Future<void> saveUserName(String name) async {
+    try {
+      final box = await _openBox(userPrefsBox);
+      await box.put(userNameKey, name);
+    } catch (e) {
+      devPrint('Error saving user name: $e');
+    }
+  }
+
+  /// Get user name
+  static Future<String> getUserName() async {
+    try {
+      final box = await _openBox(userPrefsBox);
+      return await box.get(userNameKey, defaultValue: '');
+    } catch (e) {
+      devPrint('Error getting user name: $e');
       return ''; // Default to empty string
     }
   }

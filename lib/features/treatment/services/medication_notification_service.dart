@@ -44,16 +44,26 @@ class MedicationNotificationService {
 
   /// Check if notifications are enabled for this app
   Future<bool> areNotificationsEnabled() async {
-    // First check using permission_handler for Android 13+
+    // First check the actual notification system state
+    // This is more reliable than permission_handler which can be out of sync
+    final systemEnabled = await _notificationService.areNotificationsEnabled();
     final status = await Permission.notification.status;
-    if (status.isGranted) {
+    
+    devPrint('🔍 areNotificationsEnabled check - System: $systemEnabled, Permission: $status');
+    
+    // If system says enabled, trust it (most reliable check)
+    if (systemEnabled) {
       return true;
-    } else if (status.isPermanentlyDenied) {
-      return false;
     }
     
-    // Fall back to the notification service implementation
-    return await _notificationService.areNotificationsEnabled();
+    // If system says disabled but permission is granted, there might be a channel issue
+    // Still return false since system check is authoritative
+    if (status.isGranted) {
+      devPrint('⚠️ Permission granted but system says disabled - may be channel-level blocking');
+    }
+    
+    // System says disabled
+    return false;
   }
 
   /// Request notification permissions by directly triggering the Android system dialog
@@ -192,8 +202,8 @@ class MedicationNotificationService {
             
             await _showMedicationNotification(
               id: notificationId,
-              title: 'Medication Reminder',
-              body: "You haven't taken ${medication.treatment.medicine.name} yet. It was scheduled for ${medication.treatment.formattedTimeOfDay()}",
+              title: '${medication.treatment.medicine.name} was scheduled for ${medication.treatment.formattedTimeOfDay()}',
+              body: "You haven't taken your medication yet!",
               medicationId: medicationId,
             );
             
