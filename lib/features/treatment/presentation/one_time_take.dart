@@ -153,7 +153,11 @@ class _OneTimeTakeScreenState extends ConsumerState<OneTimeTakeScreen> {
         notificationService.clearAllNotificationTracking();
         
         final todayMeds = await pillIntakeNotifier.journalLog.getMedicationsForTheDay(DateTime.now());
-        await notificationService.showUntakenMedicationNotifications(todayMeds, forceReschedule: true);
+        await notificationService.showUntakenMedicationNotifications(
+          todayMeds,
+          forceReschedule: true,
+          showImmediateNotifications: false, // Don't show immediate notifications when just rescheduling
+        );
         devPrint('📅 Triggered scheduling after saving one-time treatment');
       } catch (e) {
         devPrint('❌ Failed to schedule notifications after one-time treatment save: $e');

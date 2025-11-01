@@ -464,7 +464,11 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                     notificationService.clearAllNotificationTracking();
                     
                     final todayMeds = await journalLog.getMedicationsForTheDay(DateTime.now());
-                    await notificationService.showUntakenMedicationNotifications(todayMeds, forceReschedule: true);
+                    await notificationService.showUntakenMedicationNotifications(
+                      todayMeds,
+                      forceReschedule: true,
+                      showImmediateNotifications: false, // Don't show immediate notifications when just rescheduling
+                    );
                     devPrint('📅 Triggered scheduling after saving treatment');
                   } catch (e) {
                     devPrint('❌ Failed to schedule notifications after saving treatment: $e');

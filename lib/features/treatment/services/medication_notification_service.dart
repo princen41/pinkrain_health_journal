@@ -32,6 +32,7 @@ class MedicationNotificationService {
   
   // Track last scheduling time to prevent duplicate rapid schedules
   DateTime? _lastScheduleTime;
+  int? _lastMedicationCount;
   static const Duration _scheduleDebounceTime = Duration(seconds: 2);
 
   /// Initialize the notification service
@@ -122,17 +123,26 @@ class MedicationNotificationService {
   }
 
   /// Show notifications for untaken medications
-  /// This will both show immediate notifications for overdue medications
-  /// and schedule notifications for upcoming medications at their exact times
+  /// This will show immediate notifications for overdue medications (>5 min late)
+  /// and schedule notifications for upcoming medications at their exact scheduled times
   Future<void> showUntakenMedicationNotifications(
-      List<IntakeLog> medications, {bool forceReschedule = false}) async {
+      List<IntakeLog> medications, {
+        bool forceReschedule = false,
+        bool showImmediateNotifications = true,
+      }) async {
     // DEBOUNCE: Prevent duplicate rapid scheduling (unless forced)
     final now = DateTime.now();
     if (!forceReschedule && _lastScheduleTime != null) {
       final timeSinceLastSchedule = now.difference(_lastScheduleTime!);
       if (timeSinceLastSchedule < _scheduleDebounceTime) {
-        devPrint('⏸️ Skipping duplicate schedule request (${timeSinceLastSchedule.inMilliseconds}ms since last)');
-        return;
+        // Only skip if medication count hasn't changed (ensures new treatments trigger reschedule)
+        final untakenCount = medications.where((med) => !med.isTaken && !med.isSkipped).length;
+        if (_lastMedicationCount == untakenCount) {
+          devPrint('⏸️ Skipping duplicate request (${timeSinceLastSchedule.inMilliseconds}ms since last)');
+          return;
+        } else {
+          devPrint('🔄 Medication count changed: $_lastMedicationCount → $untakenCount');
+        }
       }
     }
     
@@ -149,12 +159,20 @@ class MedicationNotificationService {
     int unskippedCount = medications.where((med) => !med.isSkipped).length;
     int untakenUnskippedCount = medications.where((med) => !med.isTaken && !med.isSkipped).length;
     devPrint('   Untaken: $untakenCount, Unskipped: $unskippedCount, Both: $untakenUnskippedCount');
+    
+    // Track medication count for debounce logic
+    _lastMedicationCount = untakenUnskippedCount;
 
     // First, schedule notifications for future medications
     await _schedulerService.scheduleMedicationNotifications(medications);
     
-    // Then show immediate notifications for overdue medications
-    await _showImmediateNotificationsForOverdueMedications(medications);
+    // Then show immediate notifications for overdue medications (only if requested)
+    // We DON'T want to show immediate notifications when just rescheduling after edits
+    if (showImmediateNotifications) {
+      await _showImmediateNotificationsForOverdueMedications(medications);
+    } else {
+      devPrint('⏭️ Skipping immediate notifications (scheduling only)');
+    }
     
     devPrint('✅ Notification scheduling completed');
   }
@@ -167,29 +185,26 @@ class MedicationNotificationService {
     
     devPrint('🔔 Checking for overdue medications to notify immediately');
     int overdueCount = 0;
-    int soonCount = 0;
     
     for (var medication in medications) {
       // Only show notifications for untaken medications
       if (!medication.isTaken) {
-        // Create a unique ID for this medication to avoid duplicates
-        // CRITICAL FIX: Use full date (YYYYMMDD) instead of just day number to prevent cross-day conflicts
+        // Create unique ID using full date (YYYYMMDD) to prevent cross-day conflicts
         final dateKey = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
         final treatmentId = medication.treatment.id;
         final String medicationId;
         if (treatmentId.isNotEmpty) {
           medicationId = '${treatmentId}_$dateKey';
         } else {
-          // Fallback to medicine name + treatment start timestamp to avoid collisions
+          // Fallback: use medicine name + start timestamp
           final startTimestamp = medication.treatment.treatmentPlan.startDate.millisecondsSinceEpoch;
           medicationId = '${medication.treatment.medicine.name}_${startTimestamp}_$dateKey';
         }
         
         // Check if we've already notified for this medication today
         if (!_notifiedMedicationIds.contains(medicationId)) {
-          // Check if this medication is overdue or coming up very soon
+          // Only show immediate notifications for overdue medications (>5 min past scheduled time)
           bool isOverdue = false;
-          bool isSoon = false;
           
           // Use treatmentPlan.timeOfDay instead of scheduledTime
           final timeOfDay = medication.treatment.treatmentPlan.timeOfDay;
@@ -199,9 +214,10 @@ class MedicationNotificationService {
             final minute = timeOfDay.minute;
             
             final scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
-            isOverdue = scheduledTime.isBefore(now);
-            final diff = scheduledTime.difference(now);
-            isSoon = !isOverdue && diff <= const Duration(minutes: 10);
+            // Consider medication overdue if it's more than 5 minutes past scheduled time
+            // This gives a grace period for scheduled notifications to fire first
+            final timePastScheduled = now.difference(scheduledTime);
+            isOverdue = timePastScheduled > const Duration(minutes: 5);
           } catch (e) {
             devPrint('❌ Error parsing scheduled time: $e');
             // Default to showing notification if we can't parse the time
@@ -220,22 +236,8 @@ class MedicationNotificationService {
             
             overdueCount++;
             notificationId++;
-          } else if (isSoon) {
-            final minutes = (DateTime(now.year, now.month, now.day, timeOfDay.hour, timeOfDay.minute)
-                    .difference(now)
-                    .inMinutes)
-                .clamp(0, 10);
-            devPrint('🔔 Showing heads-up notification for soon medication: ${medication.treatment.medicine.name}');
-            await _showMedicationNotification(
-              id: notificationId,
-              title: '${medication.treatment.medicine.name} in ~$minutes min',
-              body: 'Reminder scheduled at ${medication.treatment.formattedTimeOfDay()}',
-              medicationId: medicationId,
-            );
-            soonCount++;
-            notificationId++;
           } else {
-            devPrint('⏳ Medication ${medication.treatment.medicine.name} is not due within 10 minutes');
+            devPrint('⏳ Medication ${medication.treatment.medicine.name} will fire at scheduled time');
           }
         } else {
           devPrint('🔕 Already notified for: ${medication.treatment.medicine.name}');
@@ -243,7 +245,7 @@ class MedicationNotificationService {
       }
     }
     
-    devPrint('📊 Immediate notification summary: $overdueCount overdue, $soonCount coming soon');
+    devPrint('📊 Immediate notification summary: $overdueCount overdue (upcoming medications will fire at their scheduled times)');
   }
 
   /// Show a notification for a medication
@@ -288,6 +290,7 @@ class MedicationNotificationService {
   void clearAllNotificationTracking() {
     _notifiedMedicationIds.clear();
     _lastScheduleTime = null;
+    _lastMedicationCount = null;
     devPrint('🧹 Cleared all notification tracking');
   }
   
@@ -295,6 +298,26 @@ class MedicationNotificationService {
   void resetDailyNotifications() {
     _notifiedMedicationIds.clear();
     _lastScheduleTime = null;
+    _lastMedicationCount = null;
     _schedulerService.resetScheduledNotifications();
+  }
+  
+  /// Cancel and remove all scheduled notifications for a specific treatment
+  /// This should be called when a treatment is deleted
+  Future<void> cancelNotificationsForTreatment(String treatmentId) async {
+    await _schedulerService.cancelNotificationsForTreatment(treatmentId);
+    clearNotificationForMedication(treatmentId);
+  }
+  
+  /// Debug: Print all scheduled notifications
+  /// Useful for troubleshooting notification issues
+  Future<void> debugPrintScheduledNotifications() async {
+    await _schedulerService.debugPrintScheduledNotifications();
+  }
+  
+  /// One-time cleanup: Remove duplicate notification records
+  /// This can be called once to fix existing duplicate issues
+  Future<int> cleanupDuplicateNotifications() async {
+    return await _schedulerService.cleanupDuplicateNotifications();
   }
 }

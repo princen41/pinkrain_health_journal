@@ -466,7 +466,11 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   final today = DateTime(now.year, now.month, now.day);
                   final todayMeds = await journalLog.getMedicationsForTheDay(today);
                   
-                  await notificationService.showUntakenMedicationNotifications(todayMeds, forceReschedule: true);
+                  await notificationService.showUntakenMedicationNotifications(
+                    todayMeds,
+                    forceReschedule: true,
+                    showImmediateNotifications: false, // Don't show immediate notifications when just rescheduling
+                  );
                   devPrint('📅 Rescheduled notifications after treatment edit');
                 } catch (e) {
                   devPrint('❌ Failed to reschedule notifications after edit: $e');

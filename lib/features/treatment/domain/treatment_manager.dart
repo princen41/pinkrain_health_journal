@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:pinkrain/core/models/medicine_model.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
+import 'package:pinkrain/features/treatment/services/medication_notification_service.dart';
 
 import '../../../core/util/helpers.dart';
 import '../data/treatment.dart';
@@ -381,6 +382,18 @@ class TreatmentManager {
     final json = _sanitizeMap(treatment.toJson());
     await HiveService.deleteTreatment(json);
     _treatments.removeWhere((t) => t.medicine.name == treatment.medicine.name);
+    
+    // CRITICAL FIX: Cancel all scheduled notifications for this treatment
+    try {
+      if (treatment.id.isNotEmpty) {
+        final notificationService = MedicationNotificationService();
+        await notificationService.cancelNotificationsForTreatment(treatment.id);
+        devPrint('✅ Cancelled notifications for deleted treatment: ${treatment.medicine.name} (ID: ${treatment.id})');
+      }
+    } catch (e) {
+      devPrint('⚠️ Error canceling notifications for deleted treatment: $e');
+      // Continue with deletion even if notification cancellation fails
+    }
   }
 
   /// Deep sanitize a map to ensure all keys are strings

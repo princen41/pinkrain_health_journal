@@ -550,6 +550,12 @@ class NotificationService {
     await _notificationsPlugin.cancel(id);
   }
 
+  // Cancel ALL scheduled notifications
+  Future<void> cancelAllNotifications() async {
+    await _notificationsPlugin.cancelAll();
+    devPrint('🧹 Cancelled ALL scheduled notifications from the system');
+  }
+
   // Check if notifications are enabled
   Future<bool> areNotificationsEnabled() async {
     // Android: use plugin-provided check
