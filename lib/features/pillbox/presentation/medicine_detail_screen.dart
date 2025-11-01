@@ -35,7 +35,7 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
   late TextEditingController nameController;
   
   late String selectedMedicationType;
-  late String selectedColor;
+  String? selectedColor;
   String? selectedSecondaryColor;
 
   @override
@@ -179,9 +179,9 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
                       return; // Don't save if name is empty
                     }
                     // Create color description for bicolore capsules
-                    String colorDescription = selectedColor;
+                    String colorDescription = selectedColor ?? 'White';
                     if (selectedMedicationType == 'Capsule' && selectedSecondaryColor != null) {
-                      colorDescription = '$selectedColor & $selectedSecondaryColor';
+                      colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
                     }
                     
                     widget.notifier.updateMedicine(

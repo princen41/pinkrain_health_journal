@@ -25,7 +25,7 @@ class _OneTimeTakeScreenState extends ConsumerState<OneTimeTakeScreen> {
   final TextEditingController dosageController = TextEditingController();
   final TextEditingController commentController = TextEditingController();
   String selectedType = 'Tablet';
-  String selectedColor = 'White';
+  String? selectedColor;
   String? selectedSecondaryColor;
   String selectedUnit = 'mg';
   
@@ -47,9 +47,9 @@ class _OneTimeTakeScreenState extends ConsumerState<OneTimeTakeScreen> {
 
   Future<void> _saveOneTimeMedication() async {
     // Create color description for bicolore capsules
-    String colorDescription = selectedColor;
+    String colorDescription = selectedColor ?? 'White';
     if (selectedType == 'Capsule' && selectedSecondaryColor != null) {
-      colorDescription = '$selectedColor & $selectedSecondaryColor';
+      colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
     }
 
     final medicine = Medicine(

@@ -127,12 +127,14 @@ extension IntExtension on int {
 final Map<String, Color> colorMap = ColorPicker.colorMap;
 
 
-FutureBuilder<SvgPicture> futureBuildSvg(String text, String selectedColor, [double size = 30, String? secondaryColor]) {
+FutureBuilder<SvgPicture> futureBuildSvg(String text, String? selectedColor, [double size = 30, String? secondaryColor]) {
+  // Use 'White' as default when selectedColor is null
+  final String effectiveColor = selectedColor ?? 'White';
   return FutureBuilder<SvgPicture>(
       future: appSvgDynamicImage(
           fileName: text.toLowerCase(),
           size: size,
-          color: colorMap[selectedColor],
+          color: colorMap[effectiveColor],
           secondaryColor: secondaryColor != null ? colorMap[secondaryColor] : null,
           useColorFilter: false
       ),
@@ -141,7 +143,7 @@ FutureBuilder<SvgPicture> futureBuildSvg(String text, String selectedColor, [dou
             appVectorImage(
                 fileName: text.toLowerCase(),
                 size: size,
-                color: colorMap[selectedColor],
+                color: colorMap[effectiveColor],
                 useColorFilter: false
             );
       }

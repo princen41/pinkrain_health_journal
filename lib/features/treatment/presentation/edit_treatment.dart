@@ -34,8 +34,8 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   late TextEditingController commentController;
   late TextEditingController durationController;
   late String selectedTreatmentType;
-  late String selectedColor;
-  late String? selectedSecondaryColor;
+  String? selectedColor;
+  String? selectedSecondaryColor;
   late String selectedMealOption;
   late String selectedDoseUnit;
   
@@ -341,9 +341,9 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
           if (_validateInput()) {
             try {
               // Create color description for bicolore capsules
-              String colorDescription = selectedColor;
+              String colorDescription = selectedColor ?? 'White';
               if (selectedTreatmentType == 'Capsule' && selectedSecondaryColor != null) {
-                colorDescription = '$selectedColor & $selectedSecondaryColor';
+                colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
               }
 
               // Create updated medicine

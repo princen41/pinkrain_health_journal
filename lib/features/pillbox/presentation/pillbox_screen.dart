@@ -277,7 +277,7 @@ class _PillboxScreenState extends ConsumerState<PillboxScreen> {
 
     // Define initial values
     String initialMedicationType = 'Tablet';
-    String initialColor = 'White';
+    String? initialColor;
     String initialUnit = 'pills';
 
     showModalBottomSheet(
@@ -306,7 +306,7 @@ class _PillboxScreenState extends ConsumerState<PillboxScreen> {
 // Separate StatefulWidget to properly manage state
 class _AddMedicineDialogContent extends ConsumerStatefulWidget {
   final String initialMedicationType;
-  final String initialColor;
+  final String? initialColor;
   final String initialUnit;
   final TextEditingController nameController;
   final TextEditingController quantityController;
@@ -330,7 +330,7 @@ class _AddMedicineDialogContent extends ConsumerStatefulWidget {
 class _AddMedicineDialogContentState extends ConsumerState<_AddMedicineDialogContent> {
   // These variables are now properly managed in StatefulWidget state
   late String selectedMedicationType;
-  late String selectedColor;
+  String? selectedColor;
   String? selectedSecondaryColor;
   late String selectedUnit;
   
@@ -575,9 +575,9 @@ class _AddMedicineDialogContentState extends ConsumerState<_AddMedicineDialogCon
                       onPressed: () {
                         if (validateAllFields()) {
                           // Create color description for bicolore capsules
-                          String colorDescription = selectedColor;
+                          String colorDescription = selectedColor ?? 'White';
                           if (selectedMedicationType == 'Capsule' && selectedSecondaryColor != null) {
-                            colorDescription = '$selectedColor & $selectedSecondaryColor';
+                            colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
                           }
                           
                           devPrint('[Pillbox] Saving medicine - Type: $selectedMedicationType, Color: $colorDescription');

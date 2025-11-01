@@ -23,7 +23,7 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
   final TreatmentManager treatmentManager = TreatmentManager();
 
   String selectedTreatmentType = 'Tablets';
-  String selectedColor = 'White';
+  String? selectedColor;
   String? selectedSecondaryColor;
   String selectedMealOption = 'Before meal';
   String selectedDoseUnit = 'mg';
@@ -509,9 +509,9 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
                   devPrint("Creating new treatment with generated ID: $uniqueId");
 
                   // Create color description for bicolore capsules
-                  String colorDescription = selectedColor;
+                  String colorDescription = selectedColor ?? 'White';
                   if (selectedTreatmentType == 'Capsule' && selectedSecondaryColor != null) {
-                    colorDescription = '$selectedColor & $selectedSecondaryColor';
+                    colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
                   }
 
                   final treatment = Treatment.newTreatment(
