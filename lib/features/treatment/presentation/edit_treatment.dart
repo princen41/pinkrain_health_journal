@@ -357,7 +357,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
               List<String> timeParts = firstDoseTime.split(':');
               int hour = int.tryParse(timeParts[0]) ?? 10;
               int minute = int.tryParse(timeParts[1]) ?? 0;
-              DateTime timeOfDay = DateTime(2024, 1, 1, hour, minute);
+              DateTime timeOfDay = createTimeOfDay(hour, minute);
 
               // Convert duration based on selected unit
               int durationInDays;
@@ -825,7 +825,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                                       mode: CupertinoDatePickerMode.time,
                                       use24hFormat: true,
                                       minuteInterval: 5,
-                                      initialDateTime: DateTime(2024, 1, 1, currentHour, currentMinute),
+                                      initialDateTime: createTimeOfDay(currentHour, currentMinute),
                                       onDateTimeChanged: (DateTime newDateTime) {
                                         setState(() {
                                           doseTimes[doseName] = '${newDateTime.hour.toString().padLeft(2, '0')}:${newDateTime.minute.toString().padLeft(2, '0')}';

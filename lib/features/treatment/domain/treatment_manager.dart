@@ -27,15 +27,12 @@ class Treatment {
     this.notes = '',
   }) : id = id ?? generateUniqueId();
 
-  /// Format the treatment's scheduled time in a readable format (e.g., "10:00 AM")
+  /// Format the treatment's scheduled time in 24h format (e.g., "14:30")
   String formattedTimeOfDay() {
     final time = treatmentPlan.timeOfDay;
-    final hour = time.hour;
-    final minute = time.minute;
-    final period = hour >= 12 ? 'PM' : 'AM';
-    final formattedHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
-    final formattedMinute = minute.toString().padLeft(2, '0');
-    return '$formattedHour:$formattedMinute $period';
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   Map<String, dynamic> toJson() {
@@ -120,7 +117,7 @@ class Treatment {
       final defaultPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(const Duration(days: 7)),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0),
+        timeOfDay: createTimeOfDay(12, 0),
       );
       
       return Treatment(medicine: defaultMedicine, treatmentPlan: defaultPlan);
@@ -168,7 +165,7 @@ class Treatment {
     final plan = TreatmentPlan(
       startDate: startDate,
       endDate: endDate,
-      timeOfDay: DateTime(2023, 1, 1, 11, 0),
+      timeOfDay: createTimeOfDay(11, 0),
       mealOption: mealOption,
       instructions: instructions,
       frequency: frequency,
@@ -202,7 +199,7 @@ class Treatment {
         endDate: DateTime.now().add(Duration(days: 2)),
         mealOption: 'After dinner',
         instructions: 'Take 1 tablet every night before bed',
-        timeOfDay: DateTime(2023, 1, 1, 11, 0));
+        timeOfDay: createTimeOfDay(11, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -213,7 +210,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 1)),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0));
+        timeOfDay: createTimeOfDay(12, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -224,7 +221,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 3)),
-        timeOfDay: DateTime(2023, 1, 1, 23, 0));
+        timeOfDay: createTimeOfDay(23, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -248,7 +245,7 @@ class Treatment {
         endDate: DateTime.now().add(Duration(days: 2)),
         mealOption: 'After dinner',
         instructions: 'Take 1 tablet every night before bed',
-        timeOfDay: DateTime(2023, 1, 1, 11, 0));
+        timeOfDay: createTimeOfDay(11, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -259,7 +256,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 1)),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0));
+        timeOfDay: createTimeOfDay(12, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -270,7 +267,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 3)),
-        timeOfDay: DateTime(2023, 1, 1, 23, 0));
+        timeOfDay: createTimeOfDay(23, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
