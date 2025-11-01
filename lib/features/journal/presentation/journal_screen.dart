@@ -947,6 +947,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
           onComplete: () async {
             // Delete the old entry
             await HiveService.deleteMoodEntry(date, timestamp);
+            if (!context.mounted) return;
             Navigator.of(context).pop();
             setState(() {
               _moodRefreshKey++;

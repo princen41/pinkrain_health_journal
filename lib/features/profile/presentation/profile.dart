@@ -137,6 +137,9 @@ class ProfileScreenState extends State<ProfileScreen> {
               ),
               SizedBox(height: 20),
               _buildSwitchTile('Reminder', isReminderEnabled, (value) async {
+                // Capture context before async gap
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                
                 setState(() {
                   isReminderEnabled = value;
                 });
@@ -176,7 +179,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                           now.add(const Duration(seconds: 10)),
                         );
                         if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        scaffoldMessenger.showSnackBar(
                           const SnackBar(
                             content: Text('⏱️ Test notification scheduled in 10s.'),
                             duration: Duration(seconds: 2),
@@ -219,7 +222,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                           now.add(const Duration(seconds: 10)),
                         );
                         if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        scaffoldMessenger.showSnackBar(
                           const SnackBar(
                             content: Text('⏱️ Test notification scheduled in 10s.'),
                             duration: Duration(seconds: 2),
@@ -251,6 +254,9 @@ class ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   child: Button.secondary(
                     onPressed: () async {
+                      // Capture context before async gap
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
+                      
                       try {
                         await _notificationService.initialize();
                         
@@ -270,7 +276,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                         );
                         
                         if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        scaffoldMessenger.showSnackBar(
                           const SnackBar(
                             content: Text('⏱️ Test notification scheduled in 10s.'),
                             duration: Duration(seconds: 2),
@@ -279,7 +285,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                       } catch (e) {
                         devPrint('❌ Error showing test notification: $e');
                         if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        scaffoldMessenger.showSnackBar(
                           SnackBar(
                             content: Text('⚠️ Could not schedule test notification. Check Settings > Notifications.'),
                             duration: const Duration(seconds: 3),
