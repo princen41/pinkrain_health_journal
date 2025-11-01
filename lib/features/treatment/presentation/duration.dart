@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:hux/hux.dart';
 
 import '../../../core/util/helpers.dart';
 import '../../../core/theme/colors.dart';
@@ -29,6 +30,7 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
   int selectedDuration = 5;
   late TextEditingController durationController;
   String selectedDurationUnit = 'days';
+  bool isUnlimitedDuration = false;
   DateTime startDate = DateTime.now().add(const Duration(days: 1)).normalize();
   String selectedStartOption = 'tomorrow';
   final TreatmentManager treatmentManager = TreatmentManager();
@@ -273,86 +275,120 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
           children: [
             Expanded(
               flex: 2,
-              child: CustomTextField(
-                controller: durationController,
-                hintText: 'Duration',
-                keyboardType: TextInputType.number,
-                isNumberField: true,
+              child: IgnorePointer(
+                ignoring: isUnlimitedDuration,
+                child: Opacity(
+                  opacity: isUnlimitedDuration ? 0.5 : 1.0,
+                  child: CustomTextField(
+                    controller: durationController,
+                    hintText: 'Duration',
+                    keyboardType: TextInputType.number,
+                    isNumberField: true,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 1,
-              child: GestureDetector(
-                onTap: () async {
-                  String pickedUnit = selectedDurationUnit;
-                  await showCupertinoModalPopup(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return StatefulBuilder(
-                        builder: (context, setModalState) {
-                          return Container(
-                            height: 200,
-                            color: Colors.white,
-                            child: CupertinoPicker(
-                              itemExtent: 50,
-                              scrollController: FixedExtentScrollController(
-                                initialItem: ['days', 'weeks', 'months'].indexOf(selectedDurationUnit),
+              child: Opacity(
+                opacity: isUnlimitedDuration ? 0.5 : 1.0,
+                child: GestureDetector(
+                  onTap: isUnlimitedDuration ? null : () async {
+                    String pickedUnit = selectedDurationUnit;
+                    await showCupertinoModalPopup(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return StatefulBuilder(
+                          builder: (context, setModalState) {
+                            return Container(
+                              height: 200,
+                              color: Colors.white,
+                              child: CupertinoPicker(
+                                itemExtent: 50,
+                                scrollController: FixedExtentScrollController(
+                                  initialItem: ['days', 'weeks', 'months'].indexOf(selectedDurationUnit),
+                                ),
+                                onSelectedItemChanged: (int index) {
+                                  pickedUnit = ['days', 'weeks', 'months'][index];
+                                },
+                                children: [
+                                  'days',
+                                  'weeks',
+                                  'months',
+                                ].map((String value) {
+                                  return Center(
+                                    child: Text(
+                                      value,
+                                      style: AppTokens.textStyleLarge,
+                                    ),
+                                  );
+                                }).toList(),
                               ),
-                              onSelectedItemChanged: (int index) {
-                                pickedUnit = ['days', 'weeks', 'months'][index];
-                              },
-                              children: [
-                                'days',
-                                'weeks',
-                                'months',
-                              ].map((String value) {
-                                return Center(
-                                  child: Text(
-                                    value,
-                                    style: AppTokens.textStyleLarge,
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  );
-                  setState(() {
-                    selectedDurationUnit = pickedUnit;
-                  });
-                  // Ensure keyboard doesn't appear after picker closes
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    FocusScope.of(context).unfocus();
-                  });
-                },
-                child: Container(
-                  height: 56,
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        selectedDurationUnit,
-                        style: AppTokens.textStyleMedium,
-                      ),
-                      const Spacer(),
-                      HugeIcon(
-                        icon: HugeIcons.strokeRoundedArrowDown01,
-                        color: AppTokens.iconMuted,
-                        size: 20,
-                      ),
-                    ],
+                            );
+                          },
+                        );
+                      },
+                    );
+                    setState(() {
+                      selectedDurationUnit = pickedUnit;
+                    });
+                    // Ensure keyboard doesn't appear after picker closes
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      FocusScope.of(context).unfocus();
+                    });
+                  },
+                  child: Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          selectedDurationUnit,
+                          style: AppTokens.textStyleMedium,
+                        ),
+                        const Spacer(),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedArrowDown01,
+                          color: AppTokens.iconMuted,
+                          size: 20,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        Theme(
+          data: Theme.of(context).copyWith(
+            checkboxTheme: CheckboxThemeData(
+              fillColor: WidgetStateProperty.all(AppColors.pink100),
+              checkColor: WidgetStateProperty.all(Colors.white),
+            ),
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: AppColors.pink100,
+            ),
+          ),
+          child: HuxCheckbox(
+            value: isUnlimitedDuration,
+            onChanged: (bool? newValue) {
+              setState(() {
+                isUnlimitedDuration = newValue ?? false;
+                if (isUnlimitedDuration) {
+                  // Unfocus any text fields when enabling unlimited duration
+                  FocusScope.of(context).unfocus();
+                }
+              });
+            },
+            label: 'Ongoing treatment',
+          ),
         ),
       ],
     );
@@ -385,24 +421,50 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
             child: Button.primary(
               onPressed: () async {
                 // Convert duration based on selected unit
-                int durationInDays;
-                switch (selectedDurationUnit) {
-                  case 'days':
-                    durationInDays = selectedDuration;
-                    break;
-                  case 'weeks':
-                    durationInDays = selectedDuration * 7;
-                    break;
-                  case 'months':
-                    durationInDays = selectedDuration * 30; // Approximate
-                    break;
-                  default:
-                    durationInDays = selectedDuration;
+                DateTime calculatedEndDate;
+                
+                if (isUnlimitedDuration) {
+                  // Set end date to 100 years in the future for unlimited duration
+                  calculatedEndDate = DateTime(startDate.year + 100, startDate.month, startDate.day);
+                } else {
+                  int durationInDays;
+                  switch (selectedDurationUnit) {
+                    case 'days':
+                      durationInDays = selectedDuration;
+                      break;
+                    case 'weeks':
+                      durationInDays = selectedDuration * 7;
+                      break;
+                    case 'months':
+                      // Use real month arithmetic instead of 30-day approximation
+                      int targetYear = startDate.year;
+                      int targetMonth = startDate.month + selectedDuration;
+                      
+                      // Handle year overflow
+                      while (targetMonth > 12) {
+                        targetMonth -= 12;
+                        targetYear += 1;
+                      }
+                      
+                      // Handle cases where target month has fewer days
+                      int targetDay = startDate.day;
+                      int daysInTargetMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+                      if (targetDay > daysInTargetMonth) {
+                        targetDay = daysInTargetMonth;
+                      }
+                      
+                      // Calculate end date and compute actual day difference
+                      calculatedEndDate = DateTime(targetYear, targetMonth, targetDay);
+                      durationInDays = calculatedEndDate.difference(startDate).inDays;
+                      break;
+                    default:
+                      durationInDays = selectedDuration;
+                  }
+                  calculatedEndDate = startDate.add(Duration(days: durationInDays - 1));
                 }
 
                 widget.treatment.treatmentPlan.startDate = startDate;
-                widget.treatment.treatmentPlan.endDate =
-                    startDate.add(Duration(days: durationInDays - 1)).normalize();
+                widget.treatment.treatmentPlan.endDate = calculatedEndDate.normalize();
 
                 // Save the selected days - create a new TreatmentPlan with selectedDays
                 final updatedTreatment = Treatment.newTreatment(
@@ -414,7 +476,7 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                   unit: widget.treatment.medicine.specs.unit,
                   useCase: widget.treatment.medicine.specs.useCase,
                   startDate: startDate,
-                  endDate: startDate.add(Duration(days: durationInDays - 1)).normalize(),
+                  endDate: calculatedEndDate.normalize(),
                   mealOption: widget.treatment.treatmentPlan.mealOption,
                   instructions: widget.treatment.treatmentPlan.instructions,
                   frequency: widget.treatment.treatmentPlan.frequency,
@@ -437,12 +499,13 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                   journalLog.clearAllCachedMedicationLogs();
                   
                   // Force reload ALL dates in the treatment range
-                  devPrint("Reloading logs for treatment range: $startDate to ${startDate.add(Duration(days: durationInDays - 1))}");
+                  devPrint("Reloading logs for treatment range: $startDate to $calculatedEndDate");
                   
                   // Reload all dates in the range (limited to reasonable range to avoid performance issues)
                   DateTime currentDate = startDate;
                   int daysLoaded = 0;
-                  while (daysLoaded < durationInDays && daysLoaded < 365) { // Limit to 1 year for performance
+                  int actualDurationInDays = calculatedEndDate.difference(startDate).inDays + 1;
+                  while (daysLoaded < actualDurationInDays && daysLoaded < 365) { // Limit to 1 year for performance
                     await journalLog.forceReloadMedicationLogs(currentDate);
                     await journalLog.saveMedicationLogs(currentDate);
                     currentDate = currentDate.add(const Duration(days: 1));
