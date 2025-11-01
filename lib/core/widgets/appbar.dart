@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
-AppBar buildAppBar(String title, {List<Widget>? actions}){
+AppBar buildAppBar(
+  String title, {
+  List<Widget>? actions,
+  Widget? leading,
+  Color? backgroundColor,
+}) {
   return AppBar(
     title: Text(
       title,
@@ -10,9 +15,10 @@ AppBar buildAppBar(String title, {List<Widget>? actions}){
         fontWeight: FontWeight.bold,
       ),
     ),
-    backgroundColor: Colors.transparent,
+    backgroundColor: backgroundColor ?? Colors.white,
     elevation: 0,
     automaticallyImplyLeading: false,
+    leading: leading,
     actions: actions,
   );
 }

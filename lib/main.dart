@@ -1,16 +1,32 @@
  import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/navigation/router.dart';
 import 'core/services/hive_service.dart';
 import 'core/services/disclaimer_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/util/helpers.dart';
+import 'features/journal/data/journal_log.dart';
 import 'features/treatment/services/daily_reset_service.dart';
 import 'features/treatment/services/medication_notification_service.dart';
 
 Future<void> main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Show iOS status bar
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.edgeToEdge,
+  );
+  
+  // Set status bar style
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
+    ),
+  );
 
   await HiveService.init();
   await DisclaimerService.init();
@@ -19,6 +35,14 @@ Future<void> main() async {
   try {
     final notificationService = MedicationNotificationService();
     await notificationService.initialize();
+    
+    // CRITICAL FIX: Schedule notifications for today's medications on app startup
+    // This ensures that if the app was killed or restarted, notifications are rescheduled
+    devPrint('🚀 App startup: Scheduling notifications for today\'s medications');
+    final journalLog = JournalLog();
+    final todayMeds = await journalLog.getMedicationsForTheDay(DateTime.now());
+    await notificationService.showUntakenMedicationNotifications(todayMeds);
+    devPrint('✅ App startup: Scheduled ${todayMeds.length} medication notifications');
   } catch (e) {
     debugPrint('Notification service initialization failed: $e');
     // Continue app startup even if notifications fail

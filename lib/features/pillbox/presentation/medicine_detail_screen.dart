@@ -360,9 +360,9 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
       orElse: () => widget.inventory,
     );
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+      backgroundColor: Colors.white,
+      appBar: buildAppBar(
+        '',
         leading: IconButton(
           icon: HugeIcon(
             icon: HugeIcons.strokeRoundedArrowLeft01,

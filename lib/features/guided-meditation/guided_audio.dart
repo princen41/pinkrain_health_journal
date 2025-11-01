@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../core/util/helpers.dart';
+import '../../core/widgets/appbar.dart';
 import '../../core/widgets/bottom_navigation.dart';
 
 class MeditationTrack {
@@ -705,17 +706,9 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Guided Meditation',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+      backgroundColor: Colors.white,
+      appBar: buildAppBar(
+        'Guided Meditation',
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => context.go('/mindfulness'),

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
+import 'package:pinkrain/core/widgets/appbar.dart';
 import 'package:pretty_animated_text/pretty_animated_text.dart';
 
 final breathingExerciseProvider =
@@ -466,21 +467,13 @@ class _BreathBreakScreenState extends ConsumerState<BreathBreakScreen>
     });
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Breath Break',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+      appBar: buildAppBar(
+        'Breath Break',
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => context.go('/mindfulness'),
         ),
+        backgroundColor: Colors.white.withValues(alpha: 0.9),
       ),
       extendBodyBehindAppBar: true, // Allow gradient to extend behind AppBar
       backgroundColor:

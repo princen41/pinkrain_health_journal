@@ -14,6 +14,7 @@ import 'package:pinkrain/core/theme/tokens.dart';
 import 'package:pinkrain/core/theme/colors.dart';
 import 'package:pinkrain/features/treatment/services/medication_notification_service.dart';
 import 'package:pinkrain/features/treatment/services/medication_scheduler_service.dart';
+import 'package:pinkrain/features/journal/domain/push_notifications.dart' as notification_impl;
 import 'package:pinkrain/core/services/disclaimer_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -32,6 +33,7 @@ class ProfileScreenState extends State<ProfileScreen> {
   bool isFillUpPillboxEnabled = false;
   late TextEditingController _nameController;
   final _notificationService = MedicationNotificationService();
+  final _notificationImpl = notification_impl.NotificationService();
 
   @override
   void initState() {
@@ -87,7 +89,7 @@ class ProfileScreenState extends State<ProfileScreen> {
             fontWeight: AppTokens.fontWeightBold,
           ),
         ),
-        backgroundColor: Colors.transparent,
+        backgroundColor: backgroundColor,
         elevation: 0,
         leading: IconButton(
           icon: HugeIcon(
@@ -139,6 +141,18 @@ class ProfileScreenState extends State<ProfileScreen> {
                   isReminderEnabled = value;
                 });
                 
+                // If turning off, cancel all notifications
+                if (!value) {
+                  try {
+                    final scheduler = MedicationSchedulerService();
+                    await scheduler.cancelAllNotifications();
+                    devPrint('🔕 Cancelled all scheduled notifications');
+                  } catch (e) {
+                    devPrint('❌ Error cancelling notifications: $e');
+                  }
+                  return;
+                }
+                
                 // Request notification permissions when switch is turned on
                 if (value) {
                   try {
@@ -150,8 +164,27 @@ class ProfileScreenState extends State<ProfileScreen> {
                     devPrint('🔔 Initial notification check: $areEnabled');
                     
                     if (areEnabled) {
-                      // Notifications are already enabled, nothing to do
-                      devPrint('✅ Notifications are already enabled');
+                      // Notifications are already enabled, schedule test notification in 10s
+                      devPrint('✅ Notifications are already enabled, showing test notification');
+                      try {
+                        await _notificationImpl.initialize();
+                        final now = DateTime.now();
+                        await _notificationImpl.schedulePillReminder(
+                          now.millisecondsSinceEpoch % 1000000,
+                          'Test Notification',
+                          'This will appear in ~10 seconds',
+                          now.add(const Duration(seconds: 10)),
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('⏱️ Test notification scheduled in 10s.'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      } catch (e) {
+                        devPrint('❌ Error showing test notification: $e');
+                      }
                       return;
                     }
                     
@@ -172,6 +205,31 @@ class ProfileScreenState extends State<ProfileScreen> {
                     
                     devPrint('🔔 Final check - Enabled: ${!stillDisabled}, Status: $finalStatus');
                     
+                    // If notifications are now enabled, show a test notification
+                    if (!stillDisabled) {
+                      if (!mounted) return;
+                      devPrint('✅ Showing test notification to verify it works');
+                      try {
+                        await _notificationImpl.initialize();
+                        final now = DateTime.now();
+                        await _notificationImpl.schedulePillReminder(
+                          now.millisecondsSinceEpoch % 1000000,
+                          'Test Notification',
+                          'This will appear in ~10 seconds',
+                          now.add(const Duration(seconds: 10)),
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('⏱️ Test notification scheduled in 10s.'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      } catch (e) {
+                        devPrint('❌ Error showing test notification: $e');
+                      }
+                    }
+                    
                     // Only show settings dialog if:
                     // 1. Notifications are still disabled according to system check, AND
                     // 2. Permission is permanently denied (can't request anymore)
@@ -186,6 +244,59 @@ class ProfileScreenState extends State<ProfileScreen> {
                   }
                 }
               }),
+              // Test Notification Button
+              if (isReminderEnabled) ...[
+                SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: Button.secondary(
+                    onPressed: () async {
+                      try {
+                        await _notificationService.initialize();
+                        
+                        // On iOS, permission APIs can be flaky; ensure permission then try anyway
+                        final status = await Permission.notification.status;
+                        if (!status.isGranted) {
+                          await _notificationService.requestNotificationPermissions();
+                        }
+                        
+                        await _notificationImpl.initialize();
+                        final now = DateTime.now();
+                        await _notificationImpl.schedulePillReminder(
+                          now.millisecondsSinceEpoch % 1000000,
+                          'Test Notification',
+                          'This will appear in ~10 seconds',
+                          now.add(const Duration(seconds: 10)),
+                        );
+                        
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('⏱️ Test notification scheduled in 10s.'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      } catch (e) {
+                        devPrint('❌ Error showing test notification: $e');
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('⚠️ Could not schedule test notification. Check Settings > Notifications.'),
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+                    text: 'Test Notification',
+                    size: ButtonSize.medium,
+                    leadingIcon: Icon(
+                      Icons.notifications_outlined,
+                      size: 18,
+                      color: AppTokens.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
            /*   _buildSwitchTile('Fill-up Pillbox', isFillUpPillboxEnabled, (value) {
                 setState(() {
                   isFillUpPillboxEnabled = value;

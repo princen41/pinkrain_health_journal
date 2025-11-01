@@ -205,7 +205,7 @@ class _PillboxScreenState extends ConsumerState<PillboxScreen> {
               treatmentPlan: TreatmentPlan(
                 startDate: DateTime.now(),
                 endDate: DateTime.now().add(const Duration(days: 30)),
-                timeOfDay: DateTime(2023, 1, 1, 12, 0),
+                timeOfDay: createTimeOfDay(12, 0),
                 mealOption: 'Take as needed',
                 instructions: 'Consult your doctor for specific instructions',
                 frequency: const Duration(days: 1),
