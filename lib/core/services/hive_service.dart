@@ -280,6 +280,88 @@ class HiveService {
     }
   }
 
+  // Delete a specific mood entry by timestamp
+  static Future<void> deleteMoodEntry(DateTime date, String timestamp) async {
+    try {
+      if (!Hive.isBoxOpen(moodBoxName)) {
+        await Hive.openBox(moodBoxName);
+      }
+      final box = Hive.box(moodBoxName);
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+
+      // Get existing entries
+      final existingEntries = await getMoodEntriesForDate(date);
+      if (existingEntries == null || existingEntries.isEmpty) {
+        devPrint('No mood entries found for date $dateKey');
+        return;
+      }
+
+      // Remove the entry with matching timestamp
+      existingEntries.removeWhere((entry) {
+        final entryTimestamp = entry['timestamp'];
+        return entryTimestamp == timestamp;
+      });
+
+      // If no entries left, delete the key entirely
+      if (existingEntries.isEmpty) {
+        await box.delete('mood_$dateKey');
+        devPrint('Deleted all mood entries for date $dateKey');
+      } else {
+        // Save the updated list
+        await box.put('mood_$dateKey', existingEntries);
+        devPrint('Deleted mood entry with timestamp $timestamp for date $dateKey');
+      }
+    } catch (e) {
+      devPrint('Error deleting mood entry: $e');
+      rethrow;
+    }
+  }
+
+  // Update a specific mood entry by timestamp
+  static Future<void> updateMoodEntry(
+    DateTime date,
+    String timestamp,
+    int newMood,
+    String newDescription,
+  ) async {
+    try {
+      if (!Hive.isBoxOpen(moodBoxName)) {
+        await Hive.openBox(moodBoxName);
+      }
+      final box = Hive.box(moodBoxName);
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+
+      // Get existing entries
+      final existingEntries = await getMoodEntriesForDate(date);
+      if (existingEntries == null || existingEntries.isEmpty) {
+        devPrint('No mood entries found for date $dateKey');
+        return;
+      }
+
+      // Find and update the entry with matching timestamp
+      bool updated = false;
+      for (var entry in existingEntries) {
+        if (entry['timestamp'] == timestamp) {
+          entry['mood'] = newMood;
+          entry['description'] = newDescription;
+          updated = true;
+          break;
+        }
+      }
+
+      if (updated) {
+        // Save the updated list
+        await box.put('mood_$dateKey', existingEntries);
+        devPrint('Updated mood entry with timestamp $timestamp for date $dateKey');
+      } else {
+        devPrint('Could not find mood entry with timestamp $timestamp');
+      }
+    } catch (e) {
+      devPrint('Error updating mood entry: $e');
+      rethrow;
+    }
+  }
+
   /// Save a symptom entry
   static Future<void> saveSymptom(String symptom, DateTime date) async {
     try {

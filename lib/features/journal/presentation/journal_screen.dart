@@ -27,7 +27,7 @@ class JournalScreen extends ConsumerStatefulWidget {
   ConsumerState<JournalScreen> createState() => JournalScreenState();
 }
 
-class JournalScreenState extends ConsumerState<JournalScreen> {
+class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindingObserver {
   late final PageController _dateScrollController;
   late final PageController _pageController;
   late DateTime selectedDate;
@@ -40,6 +40,9 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     // Initialize with offset of 1000 to allow scrolling to past weeks
     _dateScrollController = PageController(initialPage: 1000);
     _pageController = PageController(initialPage: 1000);
+
+    // Add lifecycle observer to detect when app comes back to foreground
+    WidgetsBinding.instance.addObserver(this);
 
     // Check for daily mood prompt with a delay
     Future.delayed(Duration(seconds: 3), () {
@@ -54,10 +57,32 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Refresh journal data when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
+      _refreshJournalData();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _dateScrollController.dispose();
     super.dispose();
+  }
+
+  // Helper method to refresh journal data
+  Future<void> _refreshJournalData() async {
+    if (!mounted) return;
+    try {
+      final selectedDate = ref.read(selectedDateProvider);
+      await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
+      devPrint('📋 Journal data refreshed for ${selectedDate.toString().split(' ')[0]}');
+    } catch (e) {
+      devPrint('❌ Error refreshing journal data: $e');
+    }
   }
 
   void _onPageChanged(int page) {
@@ -91,7 +116,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           // Show the daily mood prompt
           showModalBottomSheet(
             context: context,
-            isDismissible: false,
+            isDismissible: true,
             enableDrag: true,
             isScrollControlled: true,
             backgroundColor: Colors.transparent,
@@ -122,16 +147,21 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     medList = ref.watch(pillIntakeProvider);
     return Scaffold(
       backgroundColor: AppTokens.bgPrimary,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(0),
+        child: AppBar(
+          elevation: 0,
+          backgroundColor: AppTokens.bgPrimary,
+          automaticallyImplyLeading: false,
+        ),
+      ),
       body: RefreshIndicator(
           color: Colors.pink[100],
           backgroundColor: Colors.white,
           onRefresh: _refreshJournal,
           child: Column(
             children: [
-              SafeArea(
-                bottom: false,
-                child: _buildDateSelector(),
-              ),
+              _buildDateSelector(),
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -501,14 +531,23 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                               ),
                               if (hasMood && moodData != null) ...[
                                 const SizedBox(height: 8),
-                                Text(
-                                  isToday 
-                                      ? 'Tap to see your notes' 
-                                      : 'Tap to view',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppTokens.textSecondary,
-                                  ),
+                                FutureBuilder<List<Map<String, dynamic>>?>(
+                                  future: HiveService.getMoodEntriesForDate(date),
+                                  builder: (context, entriesSnapshot) {
+                                    final entries = entriesSnapshot.data ?? const [];
+                                    final notesCount = entries.isNotEmpty ? entries.length : 1;
+                                    final label = notesCount == 1 ? 'note' : 'notes';
+                                    final text = isToday
+                                        ? 'Tap to see $notesCount $label'
+                                        : '$notesCount $label';
+                                    return Text(
+                                      text,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppTokens.textSecondary,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ],
@@ -554,6 +593,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     try {
       final hasMood = await HiveService.hasMoodForDate(date);
       if (hasMood) {
+        // Return the latest mood entry; count is computed where displayed
         return await HiveService.getMoodForDate(date);
       }
       return null;
@@ -636,6 +676,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                       children: moodEntries.map((entry) {
                         final mood = entry['mood'] as int;
                         final description = entry['description'] as String;
+                        final timestampString = entry['timestamp'] as String;
                         DateTime timestamp;
                         if (entry['timestamp'] is int) {
                           timestamp = DateTime.fromMillisecondsSinceEpoch(entry['timestamp'] as int);
@@ -648,6 +689,8 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                           mood: mood,
                           description: description,
                           timeString: timeString,
+                          timestamp: timestampString,
+                          date: date,
                         );
                       }).toList(),
                     ),
@@ -730,54 +773,58 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
     required int mood,
     required String description,
     required String timeString,
+    required String timestamp,
+    required DateTime date,
   }) {
     final noteColor = _getMoodColor(mood);
     
-    return Container(
-      width: (MediaQuery.of(context).size.width - 52) / 2, // Two columns with spacing
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: noteColor,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(
-          color: noteColor.withAlpha(180), // Border matches note color
-          width: 1,
+    return GestureDetector(
+      onTap: () => _showMoodEntryMenu(date, timestamp, mood, description),
+      child: Container(
+        width: (MediaQuery.of(context).size.width - 52) / 2, // Two columns with spacing
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: noteColor,
+          borderRadius: BorderRadius.circular(2),
+          border: Border.all(
+            color: noteColor.withAlpha(180), // Border matches note color
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(10),
+              blurRadius: 12,
+              offset: const Offset(2, 3),
+            ),
+            BoxShadow(
+              color: noteColor.withAlpha(80), // Shadow tinted with note color
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 12,
-            offset: const Offset(2, 3),
-          ),
-          BoxShadow(
-            color: noteColor.withAlpha(80), // Shadow tinted with note color
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header with mood icon and time
-          Row(
-            children: [
-              SvgPicture.asset(
-                'assets/icons/${_getMoodIconName(mood)}.svg',
-                width: 24,
-                height: 24,
-              ),
-              const Spacer(),
-              Text(
-                timeString,
-                style: AppTokens.textStyleSmall.copyWith(
-                  color: AppTokens.textSecondary,
-                  fontSize: 11,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with mood icon and time
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/${_getMoodIconName(mood)}.svg',
+                  width: 24,
+                  height: 24,
                 ),
-              ),
-            ],
-          ),
+                const Spacer(),
+                Text(
+                  timeString,
+                  style: AppTokens.textStyleSmall.copyWith(
+                    color: AppTokens.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
           if (description.isNotEmpty) ...[
             const SizedBox(height: 12),
             // Tape indicator
@@ -804,7 +851,216 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
           ],
         ],
       ),
+    ),
     );
+  }
+
+  // Show menu for mood entry actions (edit/delete)
+  void _showMoodEntryMenu(DateTime date, String timestamp, int mood, String description) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppTokens.bgPrimary,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTokens.borderLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                
+                // Edit option
+                ListTile(
+                  leading: const Icon(Icons.edit, color: AppTokens.iconBold),
+                  title: const Text('Edit Note', style: AppTokens.textStyleMedium),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _editMoodEntry(date, timestamp, mood, description);
+                  },
+                ),
+                
+                // Delete option
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: Text(
+                    'Delete Note',
+                    style: AppTokens.textStyleMedium.copyWith(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _deleteMoodEntry(date, timestamp);
+                  },
+                ),
+                
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Edit a mood entry
+  void _editMoodEntry(DateTime date, String timestamp, int mood, String description) {
+    // Close the current mood details sheet
+    Navigator.pop(context);
+    
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DailyMoodPrompt(
+          date: date,
+          initialMood: mood,
+          initialDescription: description,
+          isEditing: true,
+          onComplete: () async {
+            // Delete the old entry
+            await HiveService.deleteMoodEntry(date, timestamp);
+            Navigator.of(context).pop();
+            setState(() {
+              _moodRefreshKey++;
+            });
+          },
+        );
+      },
+    );
+  }
+
+  // Delete a mood entry
+  void _deleteMoodEntry(DateTime date, String timestamp) async {
+    // Show confirmation in bottom modal
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppTokens.bgPrimary,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle bar
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTokens.borderLight,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  
+                  // Title
+                  Text(
+                    'Delete Note',
+                    style: AppTokens.textStyleXLarge.copyWith(
+                      color: AppTokens.iconBold,
+                      fontWeight: AppTokens.fontWeightBold,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Message
+                  Text(
+                    'Are you sure you want to delete this mood note? This action cannot be undone.',
+                    style: AppTokens.textStyleMedium.copyWith(
+                      color: AppTokens.textSecondary,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Button.secondary(
+                          onPressed: () => Navigator.pop(context, false),
+                          text: 'Cancel',
+                          size: ButtonSize.large,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Button.destructive(
+                          onPressed: () => Navigator.pop(context, true),
+                          text: 'Delete',
+                          size: ButtonSize.large,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 10),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        await HiveService.deleteMoodEntry(date, timestamp);
+        
+        // Close the mood details sheet
+        if (mounted) {
+          Navigator.pop(context);
+        }
+        
+        // Refresh the UI
+        setState(() {
+          _moodRefreshKey++;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Mood note deleted')),
+          );
+        }
+      } catch (e) {
+        devPrint('Error deleting mood entry: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting mood note: $e')),
+          );
+        }
+      }
+    }
   }
 
   // Show dialog to add mood for a date
@@ -1225,7 +1481,14 @@ class JournalScreenState extends ConsumerState<JournalScreen> {
                         ),
                       ),
                       InkWell(
-                        onTap: () => context.push('/edit_treatment', extra: medication),
+                        onTap: () async {
+                          // Navigate to edit treatment screen and wait for result
+                          await context.push('/edit_treatment', extra: medication);
+                          // Refresh journal data when returning from edit screen
+                          if (mounted) {
+                            await _refreshJournalData();
+                          }
+                        },
                         borderRadius: BorderRadius.circular(8),
                         child: Padding(
                           padding: const EdgeInsets.all(8),

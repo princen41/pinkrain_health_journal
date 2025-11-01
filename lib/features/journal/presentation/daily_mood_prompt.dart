@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
@@ -67,25 +66,17 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
         final date = widget.date ?? DateTime.now();
         final dateKey = DateFormat('yyyy-MM-dd').format(date);
 
-        // Make sure the box is open before saving
-        if (!Hive.isBoxOpen(HiveService.moodBoxName)) {
-          await Hive.openBox(HiveService.moodBoxName);
-        }
-
-        final box = Hive.box(HiveService.moodBoxName);
-
         // Log what we're saving
         devPrint('Saving mood data for date: $dateKey');
         devPrint('Mood: $selectedMood, Description: ${_feelingsController.text}');
         devPrint('Is editing mode: ${widget.isEditing}');
 
-        // Save the mood data
-        await box.put('mood_$dateKey', {
-          'mood': selectedMood,
-          'description': _feelingsController.text,
-          'timestamp': DateTime.now()
-              .toIso8601String(), // Always use current timestamp for when it was recorded
-        });
+        // Append a new mood entry for the date instead of overwriting existing ones
+        await HiveService.addMoodEntryForDate(
+          date,
+          selectedMood,
+          _feelingsController.text,
+        );
 
         // Save the user's current mood only if we're recording for today
         final today = DateTime.now();
