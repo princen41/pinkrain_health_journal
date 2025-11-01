@@ -5,7 +5,7 @@ import '../domain/reminder_rl.dart';
 class TreatmentPlan {
   DateTime startDate;
   DateTime endDate;
-  DateTime timeOfDay = DateTime(2023, 1, 1, 11, 0);
+  DateTime timeOfDay = DateTime(1970, 1, 1, 11, 0);
   final String mealOption;
   final String instructions;
   final Duration frequency;

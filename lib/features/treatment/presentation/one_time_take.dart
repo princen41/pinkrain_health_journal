@@ -11,6 +11,7 @@ import 'package:pinkrain/features/treatment/data/treatment.dart';
 import 'package:pinkrain/features/treatment/domain/treatment_manager.dart';
 import 'package:pinkrain/features/journal/presentation/journal_notifier.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
+import 'package:pinkrain/features/treatment/services/medication_notification_service.dart';
 
 class OneTimeTakeScreen extends ConsumerStatefulWidget {
   const OneTimeTakeScreen({super.key});
@@ -141,6 +142,21 @@ class _OneTimeTakeScreenState extends ConsumerState<OneTimeTakeScreen> {
       devPrint("Total medications in journal for $takeDate: ${journalState.length}");
       for (final log in journalState) {
         devPrint("  - ${log.treatment.medicine.name} (ID: ${log.treatment.id}) at ${log.treatment.treatmentPlan.timeOfDay.hour}:${log.treatment.treatmentPlan.timeOfDay.minute}");
+      }
+
+      // Immediately schedule notifications for today's untaken medications
+      try {
+        final notificationService = MedicationNotificationService();
+        await notificationService.initialize();
+        
+        // CRITICAL FIX: Clear notification tracking before rescheduling
+        notificationService.clearAllNotificationTracking();
+        
+        final todayMeds = await pillIntakeNotifier.journalLog.getMedicationsForTheDay(DateTime.now());
+        await notificationService.showUntakenMedicationNotifications(todayMeds, forceReschedule: true);
+        devPrint('📅 Triggered scheduling after saving one-time treatment');
+      } catch (e) {
+        devPrint('❌ Failed to schedule notifications after one-time treatment save: $e');
       }
       
       if (mounted && context.mounted) {

@@ -19,6 +19,7 @@ import '../../../core/util/date_format_converters.dart';
 import '../../../core/widgets/index.dart';
 import '../data/journal_log.dart';
 import 'journal_notifier.dart';
+import 'journal_medication_notifier.dart';
 
 class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
@@ -80,6 +81,16 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
       final selectedDate = ref.read(selectedDateProvider);
       await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
       devPrint('📋 Journal data refreshed for ${selectedDate.toString().split(' ')[0]}');
+      
+      // CRITICAL FIX: Reschedule notifications after refresh (only for today)
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (selectedDate.year == today.year && 
+          selectedDate.month == today.month && 
+          selectedDate.day == today.day) {
+        devPrint('🔄 Rescheduling notifications after journal refresh');
+        await ref.read(journalMedicationNotifierProvider.notifier).checkUntakenMedications();
+      }
     } catch (e) {
       devPrint('❌ Error refreshing journal data: $e');
     }

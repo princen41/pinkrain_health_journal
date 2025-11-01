@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -28,6 +29,10 @@ class MedicationNotificationService {
 
   // Track which medications we've already notified for today
   final Set<String> _notifiedMedicationIds = {};
+  
+  // Track last scheduling time to prevent duplicate rapid schedules
+  DateTime? _lastScheduleTime;
+  static const Duration _scheduleDebounceTime = Duration(seconds: 2);
 
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -44,26 +49,18 @@ class MedicationNotificationService {
 
   /// Check if notifications are enabled for this app
   Future<bool> areNotificationsEnabled() async {
-    // First check the actual notification system state
-    // This is more reliable than permission_handler which can be out of sync
-    final systemEnabled = await _notificationService.areNotificationsEnabled();
+    // Platform-specific logic
     final status = await Permission.notification.status;
-    
-    devPrint('🔍 areNotificationsEnabled check - System: $systemEnabled, Permission: $status');
-    
-    // If system says enabled, trust it (most reliable check)
-    if (systemEnabled) {
-      return true;
+    // iOS: rely on permission status (Android system check API not available here)
+    if (Platform.isIOS) {
+      devPrint('🔍 iOS notification check - Permission: $status');
+      return status.isGranted;
     }
-    
-    // If system says disabled but permission is granted, there might be a channel issue
-    // Still return false since system check is authoritative
-    if (status.isGranted) {
-      devPrint('⚠️ Permission granted but system says disabled - may be channel-level blocking');
-    }
-    
-    // System says disabled
-    return false;
+
+    // Android: use system-enabled check
+    final systemEnabled = await _notificationService.areNotificationsEnabled();
+    devPrint('🔍 Android notification check - System: $systemEnabled, Permission: $status');
+    return systemEnabled;
   }
 
   /// Request notification permissions by directly triggering the Android system dialog
@@ -128,32 +125,38 @@ class MedicationNotificationService {
   /// This will both show immediate notifications for overdue medications
   /// and schedule notifications for upcoming medications at their exact times
   Future<void> showUntakenMedicationNotifications(
-      List<IntakeLog> medications) async {
-    // First check if notifications are enabled
-    final bool notificationsEnabled = await areNotificationsEnabled();
-
-    if (!notificationsEnabled) {
-      devPrint('⚠️ Notifications are not enabled. Requesting permission...');
-      await requestNotificationPermissions();
-
-      // Check again after requesting
-      final bool permissionGranted = await areNotificationsEnabled();
-      if (!permissionGranted) {
-        devPrint('❌ Notification permission denied by user');
+      List<IntakeLog> medications, {bool forceReschedule = false}) async {
+    // DEBOUNCE: Prevent duplicate rapid scheduling (unless forced)
+    final now = DateTime.now();
+    if (!forceReschedule && _lastScheduleTime != null) {
+      final timeSinceLastSchedule = now.difference(_lastScheduleTime!);
+      if (timeSinceLastSchedule < _scheduleDebounceTime) {
+        devPrint('⏸️ Skipping duplicate schedule request (${timeSinceLastSchedule.inMilliseconds}ms since last)');
         return;
       }
     }
+    
+    _lastScheduleTime = now;
+    
+    // Skip permission check—rely on system to handle permission errors
+    // (Test notifications work, so permissions are granted; our check has false negatives)
+    devPrint('🔔 Scheduling notifications at ${now.toString()}');
+    devPrint('   (trusting system permission handling)');
 
     // Print debug info
     devPrint('📋 Checking ${medications.length} medications for notifications');
     int untakenCount = medications.where((med) => !med.isTaken).length;
-    devPrint('📋 Found $untakenCount untaken medications');
+    int unskippedCount = medications.where((med) => !med.isSkipped).length;
+    int untakenUnskippedCount = medications.where((med) => !med.isTaken && !med.isSkipped).length;
+    devPrint('   Untaken: $untakenCount, Unskipped: $unskippedCount, Both: $untakenUnskippedCount');
 
     // First, schedule notifications for future medications
     await _schedulerService.scheduleMedicationNotifications(medications);
     
     // Then show immediate notifications for overdue medications
     await _showImmediateNotificationsForOverdueMedications(medications);
+    
+    devPrint('✅ Notification scheduling completed');
   }
   
   /// Show immediate notifications for medications that are overdue
@@ -162,25 +165,31 @@ class MedicationNotificationService {
     int notificationId = 10000;
     final now = DateTime.now();
     
+    devPrint('🔔 Checking for overdue medications to notify immediately');
+    int overdueCount = 0;
+    int soonCount = 0;
+    
     for (var medication in medications) {
       // Only show notifications for untaken medications
       if (!medication.isTaken) {
         // Create a unique ID for this medication to avoid duplicates
-        // Use treatment ID if available, otherwise fall back to composite key
+        // CRITICAL FIX: Use full date (YYYYMMDD) instead of just day number to prevent cross-day conflicts
+        final dateKey = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
         final treatmentId = medication.treatment.id;
         final String medicationId;
         if (treatmentId.isNotEmpty) {
-          medicationId = '${treatmentId}_${DateTime.now().day}';
+          medicationId = '${treatmentId}_$dateKey';
         } else {
           // Fallback to medicine name + treatment start timestamp to avoid collisions
           final startTimestamp = medication.treatment.treatmentPlan.startDate.millisecondsSinceEpoch;
-          medicationId = '${medication.treatment.medicine.name}_${startTimestamp}_${DateTime.now().day}';
+          medicationId = '${medication.treatment.medicine.name}_${startTimestamp}_$dateKey';
         }
         
         // Check if we've already notified for this medication today
         if (!_notifiedMedicationIds.contains(medicationId)) {
-          // Check if this medication is overdue (scheduled time has passed)
+          // Check if this medication is overdue or coming up very soon
           bool isOverdue = false;
+          bool isSoon = false;
           
           // Use treatmentPlan.timeOfDay instead of scheduledTime
           final timeOfDay = medication.treatment.treatmentPlan.timeOfDay;
@@ -191,6 +200,8 @@ class MedicationNotificationService {
             
             final scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
             isOverdue = scheduledTime.isBefore(now);
+            final diff = scheduledTime.difference(now);
+            isSoon = !isOverdue && diff <= const Duration(minutes: 10);
           } catch (e) {
             devPrint('❌ Error parsing scheduled time: $e');
             // Default to showing notification if we can't parse the time
@@ -207,15 +218,32 @@ class MedicationNotificationService {
               medicationId: medicationId,
             );
             
+            overdueCount++;
+            notificationId++;
+          } else if (isSoon) {
+            final minutes = (DateTime(now.year, now.month, now.day, timeOfDay.hour, timeOfDay.minute)
+                    .difference(now)
+                    .inMinutes)
+                .clamp(0, 10);
+            devPrint('🔔 Showing heads-up notification for soon medication: ${medication.treatment.medicine.name}');
+            await _showMedicationNotification(
+              id: notificationId,
+              title: '${medication.treatment.medicine.name} in ~$minutes min',
+              body: 'Reminder scheduled at ${medication.treatment.formattedTimeOfDay()}',
+              medicationId: medicationId,
+            );
+            soonCount++;
             notificationId++;
           } else {
-            devPrint('⏳ Medication ${medication.treatment.medicine.name} is not overdue yet');
+            devPrint('⏳ Medication ${medication.treatment.medicine.name} is not due within 10 minutes');
           }
         } else {
           devPrint('🔕 Already notified for: ${medication.treatment.medicine.name}');
         }
       }
     }
+    
+    devPrint('📊 Immediate notification summary: $overdueCount overdue, $soonCount coming soon');
   }
 
   /// Show a notification for a medication
@@ -248,9 +276,25 @@ class MedicationNotificationService {
     }
   }
 
+  /// Clear notification tracking for a specific medication
+  /// Call this when a medication's schedule is changed
+  void clearNotificationForMedication(String medicationId) {
+    // Remove all entries that start with this medication ID
+    _notifiedMedicationIds.removeWhere((id) => id.startsWith(medicationId));
+    devPrint('🧹 Cleared notification tracking for: $medicationId');
+  }
+  
+  /// Clear all notification tracking (useful when rescheduling)
+  void clearAllNotificationTracking() {
+    _notifiedMedicationIds.clear();
+    _lastScheduleTime = null;
+    devPrint('🧹 Cleared all notification tracking');
+  }
+  
   /// Clear notification tracking at the end of the day
   void resetDailyNotifications() {
     _notifiedMedicationIds.clear();
+    _lastScheduleTime = null;
     _schedulerService.resetScheduledNotifications();
   }
 }

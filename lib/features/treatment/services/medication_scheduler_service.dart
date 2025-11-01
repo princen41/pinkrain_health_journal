@@ -42,6 +42,10 @@ class MedicationSchedulerService {
     
     // Reset notifications that have passed
     await _cleanupPassedNotifications();
+    
+    // Restore scheduled notifications on app restart
+    // iOS clears scheduled notifications when the app is killed, so we need to reschedule them
+    await _restoreScheduledNotifications();
   }
   
   /// Get the configured reminder offset in minutes
@@ -72,8 +76,22 @@ class MedicationSchedulerService {
     // Get the box for storing notification data
     final box = await _getBox();
     
-    // Get existing scheduled notifications
+    // CRITICAL FIX: Clean up passed notifications FIRST to avoid rescheduling old ones
+    await _cleanupPassedNotifications();
+    
+    // Get existing scheduled notifications (after cleanup)
     final scheduledNotifications = _getScheduledNotifications(box);
+    
+    // Cancel all existing scheduled notifications to prevent duplicates
+    devPrint('🧹 Canceling ${scheduledNotifications.length} existing notifications to prevent duplicates');
+    for (var notification in scheduledNotifications) {
+      final int id = notification['id'];
+      try {
+        await _notificationService.cancelReminder(id);
+      } catch (e) {
+        devPrint('⚠️ Error canceling notification $id: $e');
+      }
+    }
     
     // Track newly scheduled notifications
     final List<Map<String, dynamic>> newScheduledNotifications = [];
@@ -89,8 +107,21 @@ class MedicationSchedulerService {
         // Get the scheduled time for this medication
         final scheduledTime = _getScheduledTimeForMedication(medication);
         
+        // CRITICAL: Don't reschedule past doses to tomorrow
+        // Missed doses should stay in the past - only schedule future notifications
+        if (scheduledTime.isBefore(now)) {
+          devPrint('⏭️ Skipping past dose: ${medication.treatment.medicine.name} was scheduled for ${scheduledTime.toString()}');
+          devPrint('   (Missed doses stay in the past - immediate notifications will handle overdue reminders)');
+          continue; // Skip this medication
+        }
+        
         // Create a unique ID for this medication
-        final medicationId = '${medication.treatment.medicine.name}_${scheduledTime.day}';
+        // CRITICAL FIX: Use full date (YYYYMMDD) instead of just day number to prevent cross-day conflicts
+        final dateKey = '${scheduledTime.year}${scheduledTime.month.toString().padLeft(2, '0')}${scheduledTime.day.toString().padLeft(2, '0')}';
+        final treatmentId = medication.treatment.id;
+        final medicationId = treatmentId.isNotEmpty 
+            ? '${treatmentId}_$dateKey'
+            : '${medication.treatment.medicine.name}_$dateKey';
         
         // Generate a random ID for the notification
         final notificationId = _generateNotificationId();
@@ -149,21 +180,20 @@ class MedicationSchedulerService {
           'type': 'main',
         });
         
-        devPrint('🔔 Scheduling notification for ${medication.treatment.medicine.name} at ${scheduledTime.toString()}');
+        devPrint('🔔 Scheduled notification for ${medication.treatment.medicine.name} at ${scheduledTime.toString()}');
       }
     }
     
-    // Combine existing and new notifications, removing duplicates
-    final allNotifications = [...scheduledNotifications, ...newScheduledNotifications];
-    
-    // Deduplicate notifications using a composite key of medicationId + scheduledTime
-    // Prefer the most recent entry when keys collide
+    // Since we canceled all old notifications, just save the new ones
+    // Deduplicate the new notifications just in case
     final Map<String, Map<String, dynamic>> uniqueNotifications = {};
     
-    for (final notification in allNotifications) {
-      final String compositeKey = '${notification['medicationId']}_${notification['scheduledTime']}';
+    for (final notification in newScheduledNotifications) {
+      // IMPROVED DEDUPLICATION: Use medicationId, type, and scheduled time as composite key
+      // This ensures we don't have duplicate notifications for the same medication at the same time
+      final String compositeKey = '${notification['medicationId']}_${notification['type']}_${notification['scheduledTime']}';
       
-      // If we already have this key, keep the one with the higher ID (more recent)
+      // Keep the notification with the higher ID (more recent) if there are duplicates
       if (!uniqueNotifications.containsKey(compositeKey) || 
           notification['id'] > uniqueNotifications[compositeKey]!['id']) {
         uniqueNotifications[compositeKey] = notification;
@@ -173,6 +203,8 @@ class MedicationSchedulerService {
     // Convert back to list for saving
     final deduplicatedNotifications = uniqueNotifications.values.toList();
     
+    devPrint('💾 Saving ${deduplicatedNotifications.length} scheduled notifications (removed ${newScheduledNotifications.length - deduplicatedNotifications.length} duplicates)');
+    
     // Save the updated list of scheduled notifications
     await _saveScheduledNotifications(box, deduplicatedNotifications);
   }
@@ -181,16 +213,120 @@ class MedicationSchedulerService {
   Future<void> _cleanupPassedNotifications() async {
     final box = await _getBox();
     final scheduledNotifications = _getScheduledNotifications(box);
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now();
+    final nowMs = now.millisecondsSinceEpoch;
     
-    // Filter out notifications that have already passed
+    // Filter out notifications that have already passed (with 1 minute buffer to be safe)
     final activeNotifications = scheduledNotifications.where((notification) {
-      return notification['scheduledTime'] > now;
+      final scheduledMs = notification['scheduledTime'] as int;
+      return scheduledMs > nowMs;
     }).toList();
     
-    if (scheduledNotifications.length != activeNotifications.length) {
-      devPrint('🧹 Cleaned up ${scheduledNotifications.length - activeNotifications.length} passed notifications');
+    final removedCount = scheduledNotifications.length - activeNotifications.length;
+    if (removedCount > 0) {
+      devPrint('🧹 Cleaned up $removedCount passed notifications');
+      
+      // Also cancel these from the system notification manager
+      for (var notification in scheduledNotifications) {
+        final scheduledMs = notification['scheduledTime'] as int;
+        if (scheduledMs <= nowMs) {
+          final int id = notification['id'];
+          final medicationId = notification['medicationId'] ?? 'unknown';
+          final scheduledDate = DateTime.fromMillisecondsSinceEpoch(scheduledMs);
+          devPrint('   Removing past notification: $medicationId scheduled for ${scheduledDate.toString()}');
+          try {
+            await _notificationService.cancelReminder(id);
+          } catch (e) {
+            devPrint('   ⚠️ Error canceling past notification $id: $e');
+          }
+        }
+      }
+      
       await _saveScheduledNotifications(box, activeNotifications);
+    }
+  }
+  
+  /// Restore scheduled notifications from Hive storage
+  /// This is critical for iOS where notifications are cleared when the app is killed
+  Future<void> _restoreScheduledNotifications() async {
+    try {
+      final box = await _getBox();
+      final scheduledNotifications = _getScheduledNotifications(box);
+      
+      if (scheduledNotifications.isEmpty) {
+        devPrint('📭 No stored notifications to restore');
+        return;
+      }
+      
+      devPrint('🔄 Restoring ${scheduledNotifications.length} scheduled notifications from storage');
+      
+      // Group notifications by medication ID to reconstruct the full medication data
+      final Map<String, List<Map<String, dynamic>>> notificationsByMedicationId = {};
+      
+      for (var notification in scheduledNotifications) {
+        final medicationId = notification['medicationId'] as String? ?? '';
+        if (medicationId.isNotEmpty) {
+          notificationsByMedicationId.putIfAbsent(medicationId, () => []);
+          notificationsByMedicationId[medicationId]!.add(notification);
+        }
+      }
+      
+      // Reschedule each notification
+      for (var notification in scheduledNotifications) {
+        try {
+          final int id = notification['id'];
+          final String medicationId = notification['medicationId'] ?? '';
+          final int scheduledTimeMs = notification['scheduledTime'];
+          final String type = notification['type'] ?? 'main';
+          
+          final scheduledTime = DateTime.fromMillisecondsSinceEpoch(scheduledTimeMs);
+          
+          // Only reschedule if the notification is still in the future
+          if (scheduledTime.isAfter(DateTime.now())) {
+            // Extract medication name from the ID
+            final medicationName = medicationId.split('_').first;
+            
+            // Determine title and body based on notification type
+            String title;
+            String body;
+            
+            if (type == 'reminder') {
+              // Get reminder offset for the title
+              final reminderOffsetMinutes = await getReminderOffsetMinutes();
+              title = '$medicationName in $reminderOffsetMinutes minutes... 💊';
+              body = 'Don\'t forget to take your medication!';
+            } else {
+              title = 'Take your $medicationName';
+              body = '⏳ Time for your medication!';
+            }
+            
+            // Reschedule the notification
+            await _scheduleNotification(
+              id: id,
+              title: title,
+              body: body,
+              scheduledTime: scheduledTime,
+              payload: {
+                'medicationId': medicationId,
+                'type': type,
+                'notificationId': id.toString(),
+                'medicationName': medicationName,
+                'snooze': true,
+              },
+            );
+            
+            devPrint('✅ Restored notification: $title for $scheduledTime');
+          } else {
+            devPrint('⏰ Skipping past notification: $medicationId at $scheduledTime');
+          }
+        } catch (e) {
+          devPrint('❌ Error restoring individual notification: $e');
+        }
+      }
+      
+      devPrint('✅ Finished restoring scheduled notifications');
+    } catch (e) {
+      devPrint('❌ Error restoring scheduled notifications: $e');
     }
   }
   
@@ -233,7 +369,8 @@ class MedicationSchedulerService {
   }
   
   /// Get the scheduled time for a medication
-  /// This uses the medication's scheduled time or defaults to now + 1 hour if not available
+  /// Returns the scheduled time for TODAY only (doesn't reschedule to tomorrow)
+  /// Caller is responsible for checking if time is in the past
   DateTime _getScheduledTimeForMedication(IntakeLog medication) {
     // Try to get the scheduled time from the medication
     final timeOfDay = medication.treatment.treatmentPlan.timeOfDay;
@@ -245,9 +382,14 @@ class MedicationSchedulerService {
       final now = DateTime.now();
       var scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
       
-      // If the scheduled time is in the past for today, move it to tomorrow
+      devPrint('⏰ Medication: ${medication.treatment.medicine.name}, Current time: ${now.toString()}, Scheduled time: ${scheduledTime.toString()}');
+      
+      // Just return the time for today - don't reschedule past doses
+      // The calling code will handle skipping past times
       if (scheduledTime.isBefore(now)) {
-        scheduledTime = scheduledTime.add(const Duration(days: 1));
+        devPrint('📅 Time is in the past (will be skipped by caller)');
+      } else {
+        devPrint('✅ Time is in the future');
       }
       
       return scheduledTime;
@@ -256,7 +398,9 @@ class MedicationSchedulerService {
     }
     
     // Default: schedule for 1 hour from now
-    return DateTime.now().add(const Duration(hours: 1));
+    final defaultTime = DateTime.now().add(const Duration(hours: 1));
+    devPrint('⚠️ Using default time (1 hour from now): ${defaultTime.toString()}');
+    return defaultTime;
   }
   
   /// Generate a unique notification ID for a medication

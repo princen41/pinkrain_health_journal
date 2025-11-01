@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/util/helpers.dart';
 import '../../../features/treatment/services/medication_action_service.dart';
@@ -90,6 +91,18 @@ class NotificationService {
       },
     );
     
+    // Ensure iOS shows notifications while app is in foreground (banners/sound)
+    final iosImpl = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    if (iosImpl != null) {
+      await iosImpl.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      devPrint('iOS foreground presentation options requested (alert/badge/sound)');
+    }
+
     // For Android 13+, we need to explicitly check notification permissions
     // but for older versions, we don't need to request permissions
     // so we'll just log the initialization instead
@@ -479,7 +492,6 @@ class NotificationService {
       zonedTime,
       platformChannelSpecifics,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
       payload: payloadStr,
     );
 
@@ -540,13 +552,21 @@ class NotificationService {
 
   // Check if notifications are enabled
   Future<bool> areNotificationsEnabled() async {
-    final androidImplementation =
-        _notificationsPlugin.resolvePlatformSpecificImplementation<
+    // Android: use plugin-provided check
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
-
     if (androidImplementation != null) {
       return await androidImplementation.areNotificationsEnabled() ?? false;
     }
+
+    // iOS: rely on permission_handler status (robust and simple)
+    if (Platform.isIOS) {
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    }
+
+    // Other platforms: default to false
     return false;
   }
 }

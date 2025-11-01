@@ -156,7 +156,7 @@ class IntakeLog {
         mealOption: 'No preference',
         instructions: '',
         frequency: const Duration(days: 1),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0),
+        timeOfDay: createTimeOfDay(12, 0),
       );
 
       // Create the treatment with the explicit ID
@@ -177,7 +177,7 @@ class IntakeLog {
       final plan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(const Duration(days: 7)),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0),
+        timeOfDay: createTimeOfDay(12, 0),
       );
 
       final treatment = Treatment(medicine: medicine, treatmentPlan: plan);

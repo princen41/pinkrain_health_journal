@@ -10,6 +10,7 @@ import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/index.dart';
 import '../../../features/journal/presentation/journal_notifier.dart';
 import '../domain/treatment_manager.dart';
+import '../services/medication_notification_service.dart';
 
 class DurationScreen extends ConsumerStatefulWidget {
   final Treatment treatment;
@@ -453,6 +454,21 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                   // Force reload of journal data
                   final selectedDate = ref.read(selectedDateProvider);
                   await pillIntakeNotifier.populateJournal(selectedDate, forceReload: true);
+
+                  // Immediately schedule notifications for today's untaken medications
+                  try {
+                    final notificationService = MedicationNotificationService();
+                    await notificationService.initialize();
+                    
+                    // CRITICAL FIX: Clear notification tracking before rescheduling
+                    notificationService.clearAllNotificationTracking();
+                    
+                    final todayMeds = await journalLog.getMedicationsForTheDay(DateTime.now());
+                    await notificationService.showUntakenMedicationNotifications(todayMeds, forceReschedule: true);
+                    devPrint('📅 Triggered scheduling after saving treatment');
+                  } catch (e) {
+                    devPrint('❌ Failed to schedule notifications after saving treatment: $e');
+                  }
                   
                   if (mounted && context.mounted) {
                     context.go('/journal');

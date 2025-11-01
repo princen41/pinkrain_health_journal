@@ -5,6 +5,7 @@ import 'package:hugeicons/hugeicons.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/tokens.dart';
+import '../../../core/util/helpers.dart';
 import '../../../core/widgets/index.dart';
 import '../domain/treatment_manager.dart';
 
@@ -263,7 +264,7 @@ class ScheduleScreenState extends State<ScheduleScreen> {
                                   mode: CupertinoDatePickerMode.time,
                                   use24hFormat: true,
                                   minuteInterval: 5,
-                                  initialDateTime: DateTime(2024, 1, 1, currentHour, currentMinute),
+                                  initialDateTime: createTimeOfDay(currentHour, currentMinute),
                                   onDateTimeChanged: (DateTime newDateTime) {
                                     setState(() {
                                       doseTimes[doseName] = '${newDateTime.hour.toString().padLeft(2, '0')}:${newDateTime.minute.toString().padLeft(2, '0')}';

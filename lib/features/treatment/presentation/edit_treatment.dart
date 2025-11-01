@@ -15,6 +15,7 @@ import '../../../core/services/hive_service.dart';
 import '../../../features/journal/presentation/journal_notifier.dart';
 import '../data/treatment.dart';
 import '../domain/treatment_manager.dart';
+import '../services/medication_notification_service.dart';
 
 class EditTreatmentScreen extends ConsumerStatefulWidget {
   final Treatment treatment;
@@ -448,6 +449,27 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   devPrint("All providers invalidated for complete UI refresh");
                 } catch (e) {
                   devPrint("Error during complete refresh: $e");
+                }
+
+                // CRITICAL FIX: Reschedule notifications after editing treatment
+                try {
+                  final notificationService = MedicationNotificationService();
+                  await notificationService.initialize();
+                  
+                  // Clear notification tracking before rescheduling
+                  notificationService.clearAllNotificationTracking();
+                  devPrint('🧹 Cleared notification cache after treatment edit');
+                  
+                  // Get today's medications and reschedule notifications
+                  final journalLog = ref.read(pillIntakeProvider.notifier).journalLog;
+                  final now = DateTime.now();
+                  final today = DateTime(now.year, now.month, now.day);
+                  final todayMeds = await journalLog.getMedicationsForTheDay(today);
+                  
+                  await notificationService.showUntakenMedicationNotifications(todayMeds, forceReschedule: true);
+                  devPrint('📅 Rescheduled notifications after treatment edit');
+                } catch (e) {
+                  devPrint('❌ Failed to reschedule notifications after edit: $e');
                 }
 
                 // Show success message and pop
