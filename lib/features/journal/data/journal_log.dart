@@ -623,16 +623,20 @@ class JournalLog {
             final currentHour = currentTimeOfDay.hour;
             final currentMinute = currentTimeOfDay.minute;
             
-            // If doseTime matches current timeOfDay, preserve the log
-            // Otherwise skip it (time was changed, old log is outdated)
-            if (doseTime != null && storedHour == currentHour && storedMinute == currentMinute) {
+            // Preserve the log if:
+            // 1. doseTime is null (will use treatment's default timeOfDay), OR
+            // 2. doseTime matches current timeOfDay (time hasn't changed)
+            // Only skip if doseTime is explicitly set and doesn't match (time was changed)
+            if (doseTime == null || (storedHour == currentHour && storedMinute == currentMinute)) {
+              // Use the treatment's timeOfDay if doseTime was null
+              final logDoseTime = doseTime ?? createTimeOfDay(currentHour, currentMinute);
               final log = IntakeLog(updatedTreatment,
-                  doseTime: doseTime, isTaken: isTaken, isSkipped: isSkipped);
+                  doseTime: logDoseTime, isTaken: isTaken, isSkipped: isSkipped);
               updatedLogs.add(log);
-              devPrint("Added log for ${updatedTreatment.medicine.name} with matching doseTime: $storedHour:$storedMinute");
+              devPrint("Added log for ${updatedTreatment.medicine.name} with doseTime: ${doseTime != null ? '$storedHour:$storedMinute' : '$currentHour:$currentMinute (from treatment)'}");
             } else {
               // Time changed - skip old log, it will be recreated with new time
-              devPrint("Skipping outdated single-dose log for ${updatedTreatment.medicine.name} (old: ${storedHour ?? 'null'}:${storedMinute ?? 'null'}, new: $currentHour:$currentMinute)");
+              devPrint("Skipping outdated single-dose log for ${updatedTreatment.medicine.name} (old: $storedHour:$storedMinute, new: $currentHour:$currentMinute)");
             }
           }
         }
