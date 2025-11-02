@@ -515,7 +515,27 @@ class HiveService {
     try {
       final box = await _openBox(treatmentsBoxName);
       final treatments = await getTreatments();
-      treatments.add(treatment);
+      
+      // Check if treatment with same ID already exists - if so, update it instead of adding duplicate
+      final treatmentId = treatment['id']?.toString();
+      if (treatmentId != null && treatmentId.isNotEmpty) {
+        final existingIndex = treatments.indexWhere((t) {
+          final tId = t['id']?.toString();
+          return tId == treatmentId;
+        });
+        
+        if (existingIndex != -1) {
+          devPrint("Treatment with ID $treatmentId already exists, updating at index $existingIndex instead of adding duplicate");
+          treatments[existingIndex] = treatment;
+        } else {
+          devPrint("Treatment with ID $treatmentId not found, adding new treatment");
+          treatments.add(treatment);
+        }
+      } else {
+        // No ID, just add it
+        treatments.add(treatment);
+      }
+      
       // Sanitize and store
       final sanitizedList = _sanitizeList(treatments);
       await box.put('treatments', sanitizedList);
@@ -544,16 +564,51 @@ class HiveService {
         }
       }
       
-      // Find the index by matching all fields (or you can refine this to use only unique fields)
+      // First try to find by ID directly (most reliable)
+      final oldTreatmentId = oldTreatment['id']?.toString();
+      final updatedTreatmentId = updatedTreatment['id']?.toString();
+      
+      // CRITICAL FIX: Remove ALL treatments with the same ID (to handle duplicates)
+      // Then add the updated one
+      if (oldTreatmentId != null && oldTreatmentId.isNotEmpty) {
+        final initialCount = treatments.length;
+        treatments.removeWhere((t) {
+          final tId = t['id']?.toString();
+          return tId == oldTreatmentId;
+        });
+        final removedCount = initialCount - treatments.length;
+        devPrint("Looking for treatment with ID: $oldTreatmentId, found and removed $removedCount duplicate(s)");
+        
+        // Now add the updated treatment
+        treatments.add(updatedTreatment);
+        devPrint("Added updated treatment with ID: $updatedTreatmentId");
+        
+        // Sanitize and store
+        final sanitizedList = _sanitizeList(treatments);
+        await box.put('treatments', sanitizedList);
+        devPrint("Successfully updated treatment in storage (removed $removedCount duplicate(s))");
+        return; // Success, exit early
+      }
+      
+      // Fallback: If no ID, try the _treatmentEquals method
       final index = treatments.indexWhere((t) => _treatmentEquals(t, oldTreatment));
+      devPrint("Tried matching by _treatmentEquals, index: $index");
+      
       if (index != -1) {
-        devPrint("Updating treatment at index $index with ID: ${updatedTreatment['id']}");
+        devPrint("Updating treatment at index $index with ID: $updatedTreatmentId");
         treatments[index] = updatedTreatment;
         // Sanitize and store
         final sanitizedList = _sanitizeList(treatments);
         await box.put('treatments', sanitizedList);
+        devPrint("Successfully updated treatment in storage");
       } else {
-        devPrint('Treatment to update not found.');
+        final errorMsg = 'Treatment to update not found. ID: $oldTreatmentId, Total treatments: ${treatments.length}';
+        devPrint(errorMsg);
+        // Log all treatment IDs for debugging
+        for (int i = 0; i < treatments.length; i++) {
+          devPrint("Treatment $i ID: ${treatments[i]['id']?.toString()}");
+        }
+        throw Exception(errorMsg);
       }
     } catch (e) {
       devPrint('Error updating treatment: $e');
@@ -635,6 +690,32 @@ class HiveService {
     } catch (e) {
       devPrint('Error getting treatments: $e');
       return [];
+    }
+  }
+
+  /// Deduplicate treatments in storage, keeping only one per ID (most recent)
+  static Future<void> deduplicateTreatments() async {
+    try {
+      final storedTreatments = await getTreatments();
+      final Map<String, Map<String, dynamic>> uniqueTreatments = {};
+      
+      // Keep the last occurrence of each ID (most recent)
+      for (final treatmentMap in storedTreatments) {
+        final treatmentId = treatmentMap['id']?.toString();
+        if (treatmentId != null && treatmentId.isNotEmpty) {
+          uniqueTreatments[treatmentId] = _sanitizeMap(treatmentMap);
+        }
+      }
+      
+      // Save back the deduplicated list only if we found duplicates
+      if (uniqueTreatments.length < storedTreatments.length) {
+        final box = await _openBox(treatmentsBoxName);
+        final sanitizedList = _sanitizeList(uniqueTreatments.values.toList());
+        await box.put('treatments', sanitizedList);
+        devPrint("Deduplicated treatments: ${storedTreatments.length} -> ${uniqueTreatments.length}");
+      }
+    } catch (e) {
+      devPrint('Error deduplicating treatments: $e');
     }
   }
 

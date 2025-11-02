@@ -318,6 +318,9 @@ class TreatmentManager {
       final storedTreatments = await HiveService.getTreatments();
       _treatments.clear();
       
+      // Deduplicate treatments by ID - keep the first occurrence of each ID
+      final Map<String, Treatment> uniqueTreatments = {};
+      
       for (final treatmentMap in storedTreatments) {
         try {
           // Sanitize the map to ensure it has string keys
@@ -327,25 +330,49 @@ class TreatmentManager {
           final treatment = Treatment.fromJson(sanitizedMap);
           
           // CRITICAL FIX: Generate an ID for any treatment missing one
-          if (treatment.id.isEmpty) {
-            _treatments.add(Treatment(
-              id: generateUniqueId(),
-              medicine: treatment.medicine,
-              treatmentPlan: treatment.treatmentPlan,
-              notes: treatment.notes,
-            ));
+          final finalTreatment = treatment.id.isEmpty
+              ? Treatment(
+                  id: generateUniqueId(),
+                  medicine: treatment.medicine,
+                  treatmentPlan: treatment.treatmentPlan,
+                  notes: treatment.notes,
+                )
+              : treatment;
+          
+          // Deduplicate by ID - if we've seen this ID before, skip it
+          if (finalTreatment.id.isNotEmpty) {
+            if (!uniqueTreatments.containsKey(finalTreatment.id)) {
+              uniqueTreatments[finalTreatment.id] = finalTreatment;
+            } else {
+              devPrint("Skipping duplicate treatment with ID: ${finalTreatment.id}, name: ${finalTreatment.medicine.name}");
+            }
           } else {
-            _treatments.add(treatment);
+            // If still no ID after generation, add it anyway (shouldn't happen)
+            _treatments.add(finalTreatment);
           }
         } catch (e) {
           devPrint('Error parsing treatment: $e');
           // Skip this treatment and continue
         }
       }
+      
+      // Add all unique treatments to the list
+      _treatments.addAll(uniqueTreatments.values);
+      
+      // If we found duplicates, save the deduplicated list back to storage
+      if (uniqueTreatments.length < storedTreatments.length) {
+        devPrint("Found ${storedTreatments.length - uniqueTreatments.length} duplicate treatments, cleaning up storage");
+        await _cleanupDuplicateTreatments();
+      }
     } catch (e) {
       devPrint('Error loading treatments: $e');
       _treatments.clear(); // Reset to empty list on error
     }
+  }
+  
+  /// Clean up duplicate treatments from storage, keeping only one per ID
+  Future<void> _cleanupDuplicateTreatments() async {
+    await HiveService.deduplicateTreatments();
   }
 
   Future<void> saveTreatment(Treatment treatment) async {

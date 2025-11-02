@@ -19,7 +19,10 @@ class UnitDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: 'Unit selector, current value: $value',
+      child: GestureDetector(
       onTap: () async {
         // Find the index of the current selection
         final currentIndex = units.indexOf(value);
@@ -28,9 +31,11 @@ class UnitDropdown extends StatelessWidget {
         await showCupertinoModalPopup(
           context: context,
           builder: (BuildContext context) {
-            return Container(
+              return SafeArea(
+                top: false,
+                child: Container(
               height: 150,
-              color: Colors.white,
+                  color: CupertinoTheme.of(context).scaffoldBackgroundColor,
               child: CupertinoPicker(
                 itemExtent: 50,
                 scrollController: FixedExtentScrollController(initialItem: initialIndex),
@@ -45,6 +50,7 @@ class UnitDropdown extends StatelessWidget {
                     ),
                   );
                 }).toList(),
+                  ),
               ),
             );
           },
@@ -74,6 +80,7 @@ class UnitDropdown extends StatelessWidget {
               size: 20,
             ),
           ],
+        ),
         ),
       ),
     );

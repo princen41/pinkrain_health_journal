@@ -259,9 +259,38 @@ class JournalLog {
           }
         }
 
-        // Only update if we successfully parsed any logs
+        // Deduplicate logs by (treatment_id, dose_time) - keep the most recent one
         if (intakeLogs.isNotEmpty) {
-          medicationLogs[date] = intakeLogs;
+          final Map<String, IntakeLog> uniqueLogs = {};
+          for (final log in intakeLogs) {
+            // Create a unique key from treatment ID and dose time
+            String key;
+            if (log.doseTime != null) {
+              final hour = log.doseTime!.hour;
+              final minute = log.doseTime!.minute;
+              key = '${log.treatment.id}_$hour:$minute';
+            } else {
+              key = '${log.treatment.id}_default';
+            }
+            
+            // Keep the most recent log if duplicates exist (prioritize taken/skipped status)
+            if (!uniqueLogs.containsKey(key)) {
+              uniqueLogs[key] = log;
+            } else {
+              // If we have a duplicate, keep the one with the most information (taken or skipped)
+              final existing = uniqueLogs[key]!;
+              if ((log.isTaken || log.isSkipped) && !existing.isTaken && !existing.isSkipped) {
+                uniqueLogs[key] = log;
+              } else if ((existing.isTaken || existing.isSkipped) && !log.isTaken && !log.isSkipped) {
+                // Keep existing if it has status
+                // uniqueLogs[key] = existing; // Already in map
+              }
+            }
+          }
+          
+          final deduplicatedLogs = uniqueLogs.values.toList();
+          devPrint("Deduplicated ${intakeLogs.length} logs to ${deduplicatedLogs.length} unique entries");
+          medicationLogs[date] = deduplicatedLogs;
           return;
         }
       }
@@ -587,11 +616,24 @@ class JournalLog {
             updatedLogs.add(log);
             devPrint("Added log for ${updatedTreatment.medicine.name} with doseTime: $storedHour:$storedMinute");
           } else {
-            // Single dose treatment - preserve as-is
-            final log = IntakeLog(updatedTreatment,
-                doseTime: doseTime, isTaken: isTaken, isSkipped: isSkipped);
-            updatedLogs.add(log);
-            devPrint("Added log for ${updatedTreatment.medicine.name} with ID: ${updatedTreatment.id}");
+            // Single dose treatment - check if the stored doseTime matches current timeOfDay
+            final currentTimeOfDay = updatedTreatment.treatmentPlan.timeOfDay;
+            final storedHour = doseTime?.hour;
+            final storedMinute = doseTime?.minute;
+            final currentHour = currentTimeOfDay.hour;
+            final currentMinute = currentTimeOfDay.minute;
+            
+            // If doseTime matches current timeOfDay, preserve the log
+            // Otherwise skip it (time was changed, old log is outdated)
+            if (doseTime != null && storedHour == currentHour && storedMinute == currentMinute) {
+              final log = IntakeLog(updatedTreatment,
+                  doseTime: doseTime, isTaken: isTaken, isSkipped: isSkipped);
+              updatedLogs.add(log);
+              devPrint("Added log for ${updatedTreatment.medicine.name} with matching doseTime: $storedHour:$storedMinute");
+            } else {
+              // Time changed - skip old log, it will be recreated with new time
+              devPrint("Skipping outdated single-dose log for ${updatedTreatment.medicine.name} (old: ${storedHour ?? 'null'}:${storedMinute ?? 'null'}, new: $currentHour:$currentMinute)");
+            }
           }
         }
       }
@@ -654,17 +696,47 @@ class JournalLog {
       }
     }
 
-    // Update our in-memory store
-    medicationLogs[date] = updatedLogs;
-
-    // If we made changes, save them
-    if (needsUpdate || updatedLogs.length != (existingLogs?.length ?? 0)) {
-      await saveMedicationLogs(date);
-      devPrint(
-          "Saved updated medication logs with ${updatedLogs.length} entries");
+    // Deduplicate logs by (treatment_id, dose_time) - keep the one with most info
+    final Map<String, IntakeLog> uniqueLogs = {};
+    for (final log in updatedLogs) {
+      // Create a unique key from treatment ID and dose time
+      String key;
+      if (log.doseTime != null) {
+        final hour = log.doseTime!.hour;
+        final minute = log.doseTime!.minute;
+        key = '${log.treatment.id}_$hour:$minute';
+      } else {
+        key = '${log.treatment.id}_default';
+      }
+      
+      // Keep the log with the most information (taken or skipped status)
+      if (!uniqueLogs.containsKey(key)) {
+        uniqueLogs[key] = log;
+      } else {
+        final existing = uniqueLogs[key]!;
+        if ((log.isTaken || log.isSkipped) && !existing.isTaken && !existing.isSkipped) {
+          uniqueLogs[key] = log;
+        }
+      }
+    }
+    
+    final deduplicatedLogs = uniqueLogs.values.toList();
+    final wasDeduplicated = deduplicatedLogs.length < updatedLogs.length;
+    if (wasDeduplicated) {
+      devPrint("Deduplicated ${updatedLogs.length} logs to ${deduplicatedLogs.length} unique entries in forceReload");
     }
 
-    return updatedLogs;
+    // Update our in-memory store
+    medicationLogs[date] = deduplicatedLogs;
+
+    // If we made changes, save them
+    if (needsUpdate || wasDeduplicated || deduplicatedLogs.length != (existingLogs?.length ?? 0)) {
+      await saveMedicationLogs(date);
+      devPrint(
+          "Saved updated medication logs with ${deduplicatedLogs.length} entries");
+    }
+
+    return deduplicatedLogs;
   }
 
   /// Clear all cached medication logs to force reload from storage

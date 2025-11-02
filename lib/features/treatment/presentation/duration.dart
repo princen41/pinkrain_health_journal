@@ -9,6 +9,7 @@ import '../../../core/util/helpers.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/index.dart';
+import '../../../core/services/hive_service.dart';
 import '../../../features/journal/presentation/journal_notifier.dart';
 import '../domain/treatment_manager.dart';
 import '../services/medication_notification_service.dart';
@@ -586,7 +587,25 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                 // Preserve custom dose names that were set in the schedule screen
                 updatedTreatment.treatmentPlan.doseNamesMap = Map.from(widget.treatment.treatmentPlan.doseNamesMap);
                 
-                await treatmentManager.saveTreatment(updatedTreatment);
+                // Use updateTreatment if editing an existing treatment, otherwise saveTreatment for new treatments
+                if (widget.treatment.id.isNotEmpty) {
+                  devPrint("Updating existing treatment with ID: ${widget.treatment.id}");
+                  // Load treatments to ensure we have the latest from storage
+                  await treatmentManager.loadTreatments();
+                  // Find the original treatment from storage by ID (before modifications)
+                  final originalTreatment = treatmentManager.treatments.firstWhere(
+                    (t) => t.id == widget.treatment.id,
+                    orElse: () => widget.treatment, // Fallback to widget.treatment if not found
+                  );
+                  await treatmentManager.updateTreatment(originalTreatment, updatedTreatment);
+                  
+                  // CRITICAL: Deduplicate immediately after update to remove any remaining duplicates
+                  await HiveService.deduplicateTreatments();
+                  devPrint("Deduplicated treatments after update");
+                } else {
+                  devPrint("Saving new treatment (no ID)");
+                  await treatmentManager.saveTreatment(updatedTreatment);
+                }
                 
                 // Reload treatments to ensure the new treatment is in memory
                 await treatmentManager.loadTreatments();

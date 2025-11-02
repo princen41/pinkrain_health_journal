@@ -687,13 +687,23 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
                       children: moodEntries.map((entry) {
                         final mood = entry['mood'] as int;
                         final description = entry['description'] as String;
-                        final timestampString = entry['timestamp'] as String;
+                        final rawTimestamp = entry['timestamp'];
+                        
+                        // Convert to DateTime based on type (int or String)
                         DateTime timestamp;
-                        if (entry['timestamp'] is int) {
-                          timestamp = DateTime.fromMillisecondsSinceEpoch(entry['timestamp'] as int);
+                        String timestampString;
+                        if (rawTimestamp is int) {
+                          timestamp = DateTime.fromMillisecondsSinceEpoch(rawTimestamp);
+                          timestampString = rawTimestamp.toString(); // Preserve original int as string
+                        } else if (rawTimestamp is String) {
+                          timestamp = DateTime.parse(rawTimestamp);
+                          timestampString = rawTimestamp; // Preserve original string
                         } else {
-                          timestamp = DateTime.parse(entry['timestamp'] as String);
+                          // Fallback if type is unexpected
+                          timestamp = DateTime.now();
+                          timestampString = timestamp.toIso8601String();
                         }
+                        
                         final timeString = DateFormat('h:mm a').format(timestamp);
                         
                         return _buildPaperNote(

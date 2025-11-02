@@ -16,7 +16,7 @@ import '../../../core/theme/colors.dart';
 import 'pillbox_notifier.dart';
 
 // Edit medicine dialog widget
-class _EditMedicineDialogContent extends StatefulWidget {
+class _EditMedicineDialogContent extends ConsumerStatefulWidget {
   final MedicineInventory inventory;
   final PillBoxNotifier notifier;
   final VoidCallback onUpdate;
@@ -28,10 +28,10 @@ class _EditMedicineDialogContent extends StatefulWidget {
   });
 
   @override
-  State<_EditMedicineDialogContent> createState() => _EditMedicineDialogContentState();
+  ConsumerState<_EditMedicineDialogContent> createState() => _EditMedicineDialogContentState();
 }
 
-class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> {
+class _EditMedicineDialogContentState extends ConsumerState<_EditMedicineDialogContent> {
   late TextEditingController nameController;
   
   late String selectedMedicationType;
@@ -64,6 +64,33 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
   void dispose() {
     nameController.dispose();
     super.dispose();
+  }
+
+  void _validateName() {
+    setState(() {
+      final name = nameController.text.trim();
+      
+      if (nameController.text.isEmpty) {
+        nameError = 'Medicine name is required';
+      } else if (name.isEmpty) {
+        nameError = 'Medicine name cannot be only whitespace';
+      } else if (name.length < 2) {
+        nameError = 'Medicine name must be at least 2 characters';
+      } else {
+        // Check for duplicate names in the pillbox (excluding current medicine)
+        final pillbox = ref.read(pillBoxProvider);
+        final duplicateExists = pillbox.pillStock.any(
+          (item) => item.medicine.name.toLowerCase() == name.toLowerCase() &&
+                     item.medicine.name.toLowerCase() != widget.inventory.medicine.name.toLowerCase(),
+        );
+        
+        if (duplicateExists) {
+          nameError = 'A medicine with the name "$name" already exists.';
+        } else {
+          nameError = null;
+        }
+      }
+    });
   }
 
   @override
@@ -113,12 +140,8 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
                 hintText: 'Paracetamol',
                 errorText: nameError,
                 onChanged: () {
-                  // Clear error when user starts typing
-                  if (nameError != null) {
-                    setState(() {
-                      nameError = null;
-                    });
-                  }
+                  // Validate name as user types
+                  _validateName();
                 },
               ),
               const SizedBox(height: 20),
@@ -195,37 +218,33 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
                   Expanded(
                     child: Button.primary(
                       onPressed: () {
-                        // Clear any previous errors
-                        setState(() {
-                          nameError = null;
-                        });
+                        // Validate all fields before submission
+                        _validateName();
                         
-                        // Validate name is not empty
-                        if (nameController.text.trim().isEmpty) {
-                          setState(() {
-                            nameError = 'Medicine name is required';
-                          });
-                          return;
+                        if (nameError != null) {
+                          return; // Don't proceed if validation fails
                         }
                         
-                        try {
                         // Create color description for bicolore capsules
                         String colorDescription = selectedColor ?? 'White';
                         if (selectedMedicationType == 'Capsule' && selectedSecondaryColor != null) {
                           colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
                         }
                         
-                        widget.notifier.updateMedicine(
+                        final success = widget.notifier.updateMedicine(
                           widget.inventory,
                           nameController.text.trim(),
                           selectedMedicationType,
                           colorDescription,
                         );
+                        
+                        if (success) {
                         widget.onUpdate();
-                        } on ArgumentError catch (e) {
-                          // Show error message below the name field
+                        } else {
+                          // This should rarely happen since validation catches duplicates
+                          // But show error as safety net
                           setState(() {
-                            nameError = e.message;
+                            nameError = 'A medicine with the name "${nameController.text.trim()}" already exists.';
                           });
                         }
                       },

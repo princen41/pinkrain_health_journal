@@ -352,14 +352,26 @@ class _AddMedicineDialogContentState extends ConsumerState<_AddMedicineDialogCon
   // Validation functions
   void validateName() {
     setState(() {
+      final name = widget.nameController.text.trim();
+      
       if (widget.nameController.text.isEmpty) {
         nameError = 'Medicine name is required';
-      } else if (widget.nameController.text.trim().isEmpty) {
+      } else if (name.isEmpty) {
         nameError = 'Medicine name cannot be only whitespace';
-      } else if (widget.nameController.text.length < 2) {
+      } else if (name.length < 2) {
         nameError = 'Medicine name must be at least 2 characters';
       } else {
-        nameError = null;
+        // Check for duplicate names in the pillbox
+        final pillbox = widget.ref.read(pillBoxProvider);
+        final duplicateExists = pillbox.pillStock.any(
+          (item) => item.medicine.name.toLowerCase() == name.toLowerCase(),
+        );
+        
+        if (duplicateExists) {
+          nameError = 'A medicine with the name "$name" already exists.';
+        } else {
+          nameError = null;
+        }
       }
     });
   }
@@ -601,6 +613,7 @@ class _AddMedicineDialogContentState extends ConsumerState<_AddMedicineDialogCon
                           // Capture ScaffoldMessenger before popping to avoid deactivated context
                           final scaffoldMessenger = ScaffoldMessenger.of(context);
                           
+                          // Validation should have caught duplicates, but keep as safety net
                           try {
                             final notifier = widget.ref.read(pillBoxProvider.notifier);
                             notifier.addMedicine(newMedicine, quantity);
@@ -621,19 +634,13 @@ class _AddMedicineDialogContentState extends ConsumerState<_AddMedicineDialogCon
                               );
                             }
                           } catch (e) {
-                            // Use captured messenger for error case as well
-                            if (mounted) {
-                              scaffoldMessenger.showSnackBar(
-                                SnackBar(
-                                  content: Text('Error adding medication: ${e.toString()}'),
-                                  duration: const Duration(seconds: 3),
-                                  backgroundColor: Colors.red[300],
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15),
-                                  ),
-                                ),
-                              );
+                            // This should rarely happen since validation catches duplicates
+                            // But keep as safety net for unexpected errors
+                            devPrint('[Pillbox] Unexpected error adding medicine: $e');
+                            if (mounted && e is ArgumentError && e.message != null && e.message!.isNotEmpty) {
+                              setState(() {
+                                nameError = e.message;
+                              });
                             }
                           }
                         }

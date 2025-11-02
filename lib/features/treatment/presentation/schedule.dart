@@ -42,6 +42,47 @@ class ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    
+    // Initialize doseTimes from the treatment's existing dose times
+    final existingDoseTimes = widget.treatment.treatmentPlan.getAllDoseTimes();
+    final doseNamesMap = widget.treatment.treatmentPlan.doseNamesMap;
+    
+    if (existingDoseTimes.isNotEmpty) {
+      doseTimes = {};
+      doseControllers = {};
+      
+      // If doseNamesMap exists, use it to restore custom names, otherwise use default names
+      if (doseNamesMap.isNotEmpty) {
+        // Use the saved custom names
+        for (var entry in doseNamesMap.entries) {
+          final doseName = entry.key;
+          final time = entry.value;
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          doseTimes[doseName] = '$hour:$minute';
+          doseControllers[doseName] = TextEditingController(text: doseName);
+        }
+      } else {
+        // Fallback to default names if no custom names were saved
+        for (int i = 0; i < existingDoseTimes.length; i++) {
+          final time = existingDoseTimes[i];
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          final doseKey = 'Dose ${i + 1}';
+          doseTimes[doseKey] = '$hour:$minute';
+          doseControllers[doseKey] = TextEditingController(text: doseKey);
+        }
+      }
+    } else {
+      // Fallback to single dose using timeOfDay if no dose times exist
+      doseTimes = {'Dose 1': widget.treatment.formattedTimeOfDay()};
+      doseControllers = {'Dose 1': TextEditingController(text: 'Dose 1')};
+    }
+  }
+
+  @override
   void dispose() {
     // Dispose all text controllers
     for (var controller in doseControllers.values) {

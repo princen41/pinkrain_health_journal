@@ -6,6 +6,10 @@ import '../../../core/util/helpers.dart';
 import '../data/pillbox_model.dart';
 
 class PillBoxNotifier extends StateNotifier<IPillBox> {
+  static String _duplicateNameError(String name) => 
+    'A medicine with the name "$name" already exists. '
+    'Medicine names must be unique to ensure proper lookups.';
+  
   PillBoxNotifier() : super(PillBox()) {
     _loadFromHive();
   }
@@ -24,6 +28,15 @@ class PillBoxNotifier extends StateNotifier<IPillBox> {
   }
 
   void addMedicine(Medicine medicine, int quantity) {
+    // Validate that the medicine name doesn't already exist (case-insensitive)
+    final duplicateExists = state.pillStock.any(
+      (item) => item.medicine.name.toLowerCase() == medicine.name.toLowerCase(),
+    );
+    
+    if (duplicateExists) {
+      throw ArgumentError(_duplicateNameError(medicine.name));
+    }
+    
     final newStock = [...state.pillStock, MedicineInventory(medicine: medicine, quantity: quantity)];
     state = PillBox.populate(newStock);
     devPrint('[PillBoxNotifier.addMedicine] New state: $newStock');
@@ -49,21 +62,20 @@ class PillBoxNotifier extends StateNotifier<IPillBox> {
     HiveService.savePillBox(state.pillStock);
   }
 
-  void updateMedicine(MedicineInventory inventory, String newName, String newType, String newColor) {
+  /// Updates a medicine. Returns true if successful, false if duplicate name detected.
+  bool updateMedicine(MedicineInventory inventory, String newName, String newType, String newColor) {
     // Validate that the new name doesn't conflict with existing medicines
     // Only check for duplicates if the name is actually being changed
-    if (newName != inventory.medicine.name) {
+    if (newName.toLowerCase() != inventory.medicine.name.toLowerCase()) {
       final duplicateExists = state.pillStock.any(
-        (item) => item.medicine.name == newName,
+        (item) => item.medicine.name.toLowerCase() == newName.toLowerCase(),
       );
       
-      // If a medicine with the new name already exists, throw error
+      // If a medicine with the new name already exists, fail gracefully
       // (We know it's not the current medicine since we checked newName != inventory.medicine.name above)
       if (duplicateExists) {
-        throw ArgumentError(
-          'A medicine with the name "$newName" already exists. '
-          'Medicine names must be unique to ensure proper lookups.'
-        );
+        devPrint('[PillBoxNotifier.updateMedicine] Duplicate medicine name detected: "$newName". Update cancelled to maintain unique names.');
+        return false; // Return false to indicate failure without changing state or persisting
       }
     }
     
@@ -85,6 +97,7 @@ class PillBoxNotifier extends StateNotifier<IPillBox> {
     state = PillBox.populate(newStock);
     devPrint('[PillBoxNotifier.updateMedicine] Updated medicine: $newName, $newType, $newColor');
     HiveService.savePillBox(state.pillStock);
+    return true; // Return true to indicate success
   }
 
   void updatePillbox(List<MedicineInventory> pillStock) {
