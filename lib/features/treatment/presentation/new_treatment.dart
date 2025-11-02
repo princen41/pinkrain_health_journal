@@ -22,7 +22,7 @@ class NewTreatmentScreen extends ConsumerStatefulWidget {
 class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
   final TreatmentManager treatmentManager = TreatmentManager();
 
-  String selectedTreatmentType = 'Tablets';
+  String selectedTreatmentType = 'Tablet';
   String? selectedColor;
   String? selectedSecondaryColor;
   String selectedMealOption = 'Before meal';

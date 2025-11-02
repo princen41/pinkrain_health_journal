@@ -420,13 +420,12 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 // Set end date to 100 years in the future for unlimited duration
                 calculatedEndDate = DateTime(startDate.year + 100, startDate.month, startDate.day);
               } else {
-                int durationInDays;
                 switch (selectedDurationUnit) {
                   case 'days':
-                    durationInDays = selectedDuration;
+                    calculatedEndDate = startDate.add(Duration(days: selectedDuration - 1));
                     break;
                   case 'weeks':
-                    durationInDays = selectedDuration * 7;
+                    calculatedEndDate = startDate.add(Duration(days: selectedDuration * 7 - 1));
                     break;
                   case 'months':
                     // Use real month arithmetic instead of 30-day approximation
@@ -446,14 +445,12 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                       targetDay = daysInTargetMonth;
                     }
                     
-                    // Calculate end date and compute actual day difference
+                    // Calculate end date using clamped target date
                     calculatedEndDate = DateTime(targetYear, targetMonth, targetDay);
-                    durationInDays = calculatedEndDate.difference(startDate).inDays;
                     break;
                   default:
-                    durationInDays = selectedDuration;
+                    calculatedEndDate = startDate.add(Duration(days: selectedDuration - 1));
                 }
-                calculatedEndDate = startDate.add(Duration(days: durationInDays - 1));
               }
 
               // Create updated treatment plan with schedule and duration data
@@ -749,6 +746,45 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 }
               } else if (deleteOption == 'from_today') {
                 // End the treatment early (set endDate to day before selected date)
+                // CRITICAL FIX: Remove medication log entries from selected date onwards
+                final treatmentEndDate = widget.treatment.treatmentPlan.endDate.normalize();
+                final treatmentId = widget.treatment.id;
+                final cutoffDate = selectedDate.normalize(); // From this date onwards
+                
+                devPrint("Removing medication logs for treatment ${widget.treatment.medicine.name} (ID: $treatmentId) from $cutoffDate to $treatmentEndDate");
+                
+                // Iterate through all dates from selected date to original end date
+                DateTime currentDate = cutoffDate;
+                int datesProcessed = 0;
+                int logsRemoved = 0;
+                
+                while (!currentDate.isAfter(treatmentEndDate) && datesProcessed < 365 * 2) { // Limit to 2 years for safety
+                  try {
+                    final existingLogs = await HiveService.getMedicationLogsForDate(currentDate);
+                    if (existingLogs != null) {
+                      // Filter out logs for this treatment
+                      final updatedLogs = existingLogs.where((log) {
+                        final logTreatmentId = log['treatment_id']?.toString() ?? '';
+                        return logTreatmentId != treatmentId;
+                      }).toList();
+                      
+                      // Always save the updated logs, even if empty (to ensure deletion is persisted)
+                      if (updatedLogs.length < existingLogs.length) {
+                        logsRemoved += (existingLogs.length - updatedLogs.length);
+                        await HiveService.saveMedicationLogsForDate(currentDate, updatedLogs);
+                      }
+                    }
+                  } catch (e) {
+                    devPrint("Error processing logs for date $currentDate: $e");
+                  }
+                  
+                  currentDate = currentDate.add(const Duration(days: 1));
+                  datesProcessed++;
+                }
+                
+                devPrint("Removed $logsRemoved medication log entries across $datesProcessed dates");
+                
+                // Now update the treatment to end before the selected date
                 final updatedTreatment = Treatment(
                   id: widget.treatment.id,
                   medicine: widget.treatment.medicine,
@@ -767,8 +803,26 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 );
                 await treatmentManager.updateTreatment(widget.treatment, updatedTreatment);
                 
+                // CRITICAL: Reload treatments to ensure the updated end date is in memory
+                await treatmentManager.loadTreatments();
+                
+                // Clear all caches
                 journalLog.clearAllCachedMedicationLogs();
-                await journalLog.forceReloadMedicationLogs(selectedDate);
+                
+                // Force reload ALL affected dates (from selected date to original end date)
+                // to ensure they're refreshed with the updated treatment data
+                DateTime reloadDate = cutoffDate;
+                int reloadCount = 0;
+                while (!reloadDate.isAfter(treatmentEndDate) && reloadCount < 365 * 2) {
+                  await journalLog.forceReloadMedicationLogs(reloadDate);
+                  await journalLog.saveMedicationLogs(reloadDate);
+                  reloadDate = reloadDate.add(const Duration(days: 1));
+                  reloadCount++;
+                }
+                
+                devPrint("Reloaded $reloadCount dates after treatment update");
+                
+                // Also reload the selected date for UI refresh
                 await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
                 
                 if (mounted) {
@@ -780,8 +834,49 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 }
               } else if (deleteOption == 'all') {
                 // Delete treatment completely
+                // CRITICAL FIX: Remove medication log entries for this treatment across ALL dates
+                // before deleting the treatment itself
+                final treatmentStartDate = widget.treatment.treatmentPlan.startDate.normalize();
+                final treatmentEndDate = widget.treatment.treatmentPlan.endDate.normalize();
+                final treatmentId = widget.treatment.id;
+                
+                devPrint("Deleting all medication logs for treatment ${widget.treatment.medicine.name} (ID: $treatmentId) from $treatmentStartDate to $treatmentEndDate");
+                
+                // Iterate through all dates in the treatment's date range
+                DateTime currentDate = treatmentStartDate;
+                int datesProcessed = 0;
+                int logsRemoved = 0;
+                
+                while (!currentDate.isAfter(treatmentEndDate) && datesProcessed < 365 * 2) { // Limit to 2 years for safety
+                  try {
+                    final existingLogs = await HiveService.getMedicationLogsForDate(currentDate);
+                    if (existingLogs != null && existingLogs.isNotEmpty) {
+                      // Filter out logs for this treatment
+                      final updatedLogs = existingLogs.where((log) {
+                        final logTreatmentId = log['treatment_id']?.toString() ?? '';
+                        return logTreatmentId != treatmentId;
+                      }).toList();
+                      
+                      // Only save if we actually removed something
+                      if (updatedLogs.length < existingLogs.length) {
+                        logsRemoved += (existingLogs.length - updatedLogs.length);
+                        await HiveService.saveMedicationLogsForDate(currentDate, updatedLogs);
+                      }
+                    }
+                  } catch (e) {
+                    devPrint("Error processing logs for date $currentDate: $e");
+                  }
+                  
+                  currentDate = currentDate.add(const Duration(days: 1));
+                  datesProcessed++;
+                }
+                
+                devPrint("Removed $logsRemoved medication log entries across $datesProcessed dates");
+                
+                // Now delete the treatment itself
                 await treatmentManager.deleteTreatment(widget.treatment);
 
+                // Clear all caches and reload
                 journalLog.clearAllCachedMedicationLogs();
                 await journalLog.forceReloadMedicationLogs(selectedDate);
                 await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
