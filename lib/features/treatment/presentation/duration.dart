@@ -546,13 +546,20 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                       // Handle cases where target month has fewer days
                       int targetDay = startDate.day;
                       int daysInTargetMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+                      bool wasTruncated = false;
                       if (targetDay > daysInTargetMonth) {
                         targetDay = daysInTargetMonth;
+                        wasTruncated = true;
                       }
                       
                       // Calculate end date and compute actual day difference
                       calculatedEndDate = DateTime(targetYear, targetMonth, targetDay);
                       durationInDays = calculatedEndDate.difference(startDate).inDays;
+                      // Bump the day count when truncation happens so the inclusive end date 
+                      // still lands on the last valid day
+                      if (wasTruncated) {
+                        durationInDays += 1;
+                      }
                       break;
                     default:
                       durationInDays = selectedDuration;

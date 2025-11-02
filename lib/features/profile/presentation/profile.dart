@@ -502,16 +502,19 @@ class ProfileScreenState extends State<ProfileScreen> {
                     width: double.infinity,
                     child: Button.destructive(
                       onPressed: () async {
-                        final navigator = Navigator.of(context);
-                        navigator.pop(); // Close modal first
+                        // Capture host context and navigator before popping the sheet
+                        final hostContext = this.context;
+                        final hostNavigatorState = Navigator.of(hostContext);
+                        
+                        // Close modal first using the sheet's context
+                        Navigator.of(context).pop();
                         
                         if (!mounted) return;
-                        final navigatorState = Navigator.of(context);
                         
                         // Show loading indicator
                         if (mounted) {
                           showCupertinoDialog(
-                            context: context,
+                            context: hostContext,
                             barrierDismissible: false,
                             builder: (context) => const CupertinoAlertDialog(
                               content: Padding(
@@ -538,7 +541,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                           
                           // Close loading dialog
                           if (!mounted) return;
-                          navigatorState.pop();
+                          hostNavigatorState.pop();
                           
                           // Show success message and navigate
                           if (!mounted) return;
@@ -553,10 +556,10 @@ class ProfileScreenState extends State<ProfileScreen> {
                                 CupertinoDialogAction(
                                   isDefaultAction: true,
                                   onPressed: () {
-                                    navigatorState.pop();
+                                    Navigator.of(context).pop();
                                     if (!mounted) return;
                                     // Navigate to a fresh start (could be wellness or splash)
-                                    context.go('/wellness');
+                                    this.context.go('/wellness');
                                   },
                                   child: const Text('OK'),
                                 ),
@@ -567,7 +570,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                           devPrint('❌ Error deleting data: $e');
                           // Close loading dialog
                           if (!mounted) return;
-                          navigatorState.pop();
+                          hostNavigatorState.pop();
                           
                           // Show error message
                           if (!mounted) return;
@@ -580,7 +583,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                                 CupertinoDialogAction(
                                   isDefaultAction: true,
                                   onPressed: () {
-                                    navigatorState.pop();
+                                    Navigator.of(context).pop();
                                   },
                                   child: const Text('OK'),
                                 ),
