@@ -14,7 +14,6 @@ import 'package:pinkrain/core/theme/tokens.dart';
 import 'package:pinkrain/core/theme/colors.dart';
 import 'package:pinkrain/features/treatment/services/medication_notification_service.dart';
 import 'package:pinkrain/features/treatment/services/medication_scheduler_service.dart';
-import 'package:pinkrain/features/journal/domain/push_notifications.dart' as notification_impl;
 import 'package:pinkrain/core/services/disclaimer_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -33,7 +32,6 @@ class ProfileScreenState extends State<ProfileScreen> {
   bool isFillUpPillboxEnabled = false;
   late TextEditingController _nameController;
   final _notificationService = MedicationNotificationService();
-  final _notificationImpl = notification_impl.NotificationService();
 
   @override
   void initState() {
@@ -51,11 +49,12 @@ class ProfileScreenState extends State<ProfileScreen> {
   // Load user name from storage
   Future<void> _loadUserName() async {
     final savedName = await HiveService.getUserName();
-    if (savedName.isNotEmpty) {
-      setState(() {
-        _nameController.text = savedName;
-      });
+    if (!mounted || savedName.isEmpty) {
+      return;
     }
+    setState(() {
+      _nameController.text = savedName;
+    });
   }
 
   // Save user name to storage
@@ -137,9 +136,6 @@ class ProfileScreenState extends State<ProfileScreen> {
               ),
               SizedBox(height: 20),
               _buildSwitchTile('Reminder', isReminderEnabled, (value) async {
-                // Capture context before async gap
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                
                 setState(() {
                   isReminderEnabled = value;
                 });
@@ -167,27 +163,8 @@ class ProfileScreenState extends State<ProfileScreen> {
                     devPrint('🔔 Initial notification check: $areEnabled');
                     
                     if (areEnabled) {
-                      // Notifications are already enabled, schedule test notification in 10s
-                      devPrint('✅ Notifications are already enabled, showing test notification');
-                      try {
-                        await _notificationImpl.initialize();
-                        final now = DateTime.now();
-                        await _notificationImpl.schedulePillReminder(
-                          now.millisecondsSinceEpoch % 1000000,
-                          'Test Notification',
-                          'This will appear in ~10 seconds',
-                          now.add(const Duration(seconds: 10)),
-                        );
-                        if (!mounted) return;
-                        scaffoldMessenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('⏱️ Test notification scheduled in 10s.'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      } catch (e) {
-                        devPrint('❌ Error showing test notification: $e');
-                      }
+                      // Notifications are already enabled
+                      devPrint('✅ Notifications are already enabled');
                       return;
                     }
                     
@@ -208,101 +185,34 @@ class ProfileScreenState extends State<ProfileScreen> {
                     
                     devPrint('🔔 Final check - Enabled: ${!stillDisabled}, Status: $finalStatus');
                     
-                    // If notifications are now enabled, show a test notification
+                    // If notifications are now enabled
                     if (!stillDisabled) {
                       if (!mounted) return;
-                      devPrint('✅ Showing test notification to verify it works');
-                      try {
-                        await _notificationImpl.initialize();
-                        final now = DateTime.now();
-                        await _notificationImpl.schedulePillReminder(
-                          now.millisecondsSinceEpoch % 1000000,
-                          'Test Notification',
-                          'This will appear in ~10 seconds',
-                          now.add(const Duration(seconds: 10)),
-                        );
-                        if (!mounted) return;
-                        scaffoldMessenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('⏱️ Test notification scheduled in 10s.'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      } catch (e) {
-                        devPrint('❌ Error showing test notification: $e');
+                      devPrint('✅ Notifications enabled successfully');
+                    } else {
+                      // Notifications remain disabled - flip switch back off
+                      if (mounted) {
+                        setState(() {
+                          isReminderEnabled = false;
+                        });
                       }
-                    }
-                    
-                    // Only show settings dialog if:
-                    // 1. Notifications are still disabled according to system check, AND
-                    // 2. Permission is permanently denied (can't request anymore)
-                    if (stillDisabled && finalStatus.isPermanentlyDenied && mounted) {
-                      _showOpenSettingsDialog();
-                    } else if (stillDisabled && !finalStatus.isPermanentlyDenied) {
-                      // Notifications disabled but not permanently denied - user might need to grant permission
-                      devPrint('⚠️ Notifications disabled but permission can still be requested');
+                      
+                      // Only show settings dialog if:
+                      // 1. Notifications are still disabled according to system check, AND
+                      // 2. Permission is permanently denied (can't request anymore)
+                      if (finalStatus.isPermanentlyDenied && mounted) {
+                        _showOpenSettingsDialog();
+                      } else if (!finalStatus.isPermanentlyDenied && mounted) {
+                        // Notifications disabled but not permanently denied - user might need to grant permission
+                        devPrint('⚠️ Notifications disabled but permission can still be requested');
+                      }
+                      return; // Return early to avoid leaving UI in inconsistent state
                     }
                   } catch (e) {
                     devPrint('❌ Error requesting notification permissions: $e');
                   }
                 }
               }),
-              // Test Notification Button
-              if (isReminderEnabled) ...[
-                SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: Button.secondary(
-                    onPressed: () async {
-                      // Capture context before async gap
-                      final scaffoldMessenger = ScaffoldMessenger.of(context);
-                      
-                      try {
-                        await _notificationService.initialize();
-                        
-                        // On iOS, permission APIs can be flaky; ensure permission then try anyway
-                        final status = await Permission.notification.status;
-                        if (!status.isGranted) {
-                          await _notificationService.requestNotificationPermissions();
-                        }
-                        
-                        await _notificationImpl.initialize();
-                        final now = DateTime.now();
-                        await _notificationImpl.schedulePillReminder(
-                          now.millisecondsSinceEpoch % 1000000,
-                          'Test Notification',
-                          'This will appear in ~10 seconds',
-                          now.add(const Duration(seconds: 10)),
-                        );
-                        
-                        if (!mounted) return;
-                        scaffoldMessenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('⏱️ Test notification scheduled in 10s.'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      } catch (e) {
-                        devPrint('❌ Error showing test notification: $e');
-                        if (!mounted) return;
-                        scaffoldMessenger.showSnackBar(
-                          SnackBar(
-                            content: Text('⚠️ Could not schedule test notification. Check Settings > Notifications.'),
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    },
-                    text: 'Test Notification',
-                    size: ButtonSize.medium,
-                    leadingIcon: Icon(
-                      Icons.notifications_outlined,
-                      size: 18,
-                      color: AppTokens.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
            /*   _buildSwitchTile('Fill-up Pillbox', isFillUpPillboxEnabled, (value) {
                 setState(() {
                   isFillUpPillboxEnabled = value;

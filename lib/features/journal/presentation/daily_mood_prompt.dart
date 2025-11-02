@@ -17,6 +17,7 @@ class DailyMoodPrompt extends ConsumerStatefulWidget {
   final int? initialMood; // Initial mood for editing
   final String? initialDescription; // Initial description for editing
   final bool isEditing; // Flag to indicate if this is an edit operation
+  final String? entryTimestamp; // Timestamp identifier for editing existing entries
 
   const DailyMoodPrompt({
     super.key,
@@ -25,6 +26,7 @@ class DailyMoodPrompt extends ConsumerStatefulWidget {
     this.initialMood,
     this.initialDescription,
     this.isEditing = false,
+    this.entryTimestamp,
   });
 
   @override
@@ -71,12 +73,25 @@ class DailyMoodPromptState extends ConsumerState<DailyMoodPrompt> {
         devPrint('Mood: $selectedMood, Description: ${_feelingsController.text}');
         devPrint('Is editing mode: ${widget.isEditing}');
 
-        // Append a new mood entry for the date instead of overwriting existing ones
-        await HiveService.addMoodEntryForDate(
-          date,
-          selectedMood,
-          _feelingsController.text,
-        );
+        // Branch on isEditing: update existing entry or add new one
+        if (widget.isEditing && widget.entryTimestamp != null) {
+          // Update existing entry
+          await HiveService.updateMoodEntry(
+            date,
+            widget.entryTimestamp!,
+            selectedMood,
+            _feelingsController.text,
+          );
+          devPrint('Updated mood entry with timestamp ${widget.entryTimestamp}');
+        } else {
+          // Add new entry (only when not editing)
+          await HiveService.addMoodEntryForDate(
+            date,
+            selectedMood,
+            _feelingsController.text,
+          );
+          devPrint('Added new mood entry');
+        }
 
         // Save the user's current mood only if we're recording for today
         final today = DateTime.now();

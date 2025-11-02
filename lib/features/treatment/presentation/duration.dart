@@ -35,10 +35,106 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
   String selectedStartOption = 'tomorrow';
   final TreatmentManager treatmentManager = TreatmentManager();
 
+  /// Derive the start option from a stored date by comparing it to today/tomorrow/next Monday
+  String _deriveStartOption(DateTime storedDate) {
+    final now = DateTime.now();
+    final today = now.normalize();
+    final tomorrow = now.add(const Duration(days: 1)).normalize();
+    final storedNormalized = storedDate.normalize();
+    
+    // Check if it's today
+    if (storedNormalized.year == today.year && 
+        storedNormalized.month == today.month && 
+        storedNormalized.day == today.day) {
+      return 'today';
+    }
+    
+    // Check if it's tomorrow
+    if (storedNormalized.year == tomorrow.year && 
+        storedNormalized.month == tomorrow.month && 
+        storedNormalized.day == tomorrow.day) {
+      return 'tomorrow';
+    }
+    
+    // Check if it's next Monday
+    int daysUntilMonday = (8 - now.weekday) % 7;
+    if (daysUntilMonday == 0) daysUntilMonday = 7;
+    final nextMonday = now.add(Duration(days: daysUntilMonday)).normalize();
+    if (storedNormalized.year == nextMonday.year && 
+        storedNormalized.month == nextMonday.month && 
+        storedNormalized.day == nextMonday.day) {
+      return 'next Monday';
+    }
+    
+    // Otherwise, it's a specific date
+    return 'Select specific date';
+  }
+
   @override
   void initState() {
     super.initState();
+    
+    final plan = widget.treatment.treatmentPlan;
+    
+    // Hydrate selectedDays from the plan
+    for (int i = 0; i < 7; i++) {
+      if (i < plan.selectedDays.length) {
+        selectedDays[i] = plan.selectedDays[i];
+      } else {
+        selectedDays[i] = false; // Default to false if plan doesn't have enough days
+      }
+    }
+    
+    // Normalize and set startDate from the stored plan (handle timezone/UTC normalization)
+    startDate = plan.startDate.normalize();
+    
+    // Compute duration from plan.startDate and plan.endDate
+    final durationDays = plan.endDate.difference(plan.startDate).inDays + 1;
+    
+    // Check if it's unlimited duration (100 years in the future indicates unlimited)
+    final durationYears = durationDays / 365.0;
+    isUnlimitedDuration = durationYears > 50; // Treat > 50 years as unlimited
+    
+    if (isUnlimitedDuration) {
+      // For unlimited, use a default duration for display purposes
+      selectedDuration = 30;
+      selectedDurationUnit = 'days';
+    } else {
+      // Determine the appropriate unit and value
+      if (durationDays % 30 == 0 && durationDays >= 30) {
+        // Try months first (approximate)
+        final months = durationDays ~/ 30;
+        if (months >= 1 && months <= 24) {
+          selectedDuration = months;
+          selectedDurationUnit = 'months';
+        } else {
+          // Too many months, use weeks or days
+          if (durationDays % 7 == 0) {
+            selectedDuration = durationDays ~/ 7;
+            selectedDurationUnit = 'weeks';
+          } else {
+            selectedDuration = durationDays;
+            selectedDurationUnit = 'days';
+          }
+        }
+      } else if (durationDays % 7 == 0 && durationDays >= 7) {
+        // Use weeks
+        selectedDuration = durationDays ~/ 7;
+        selectedDurationUnit = 'weeks';
+      } else {
+        // Use days
+        selectedDuration = durationDays;
+        selectedDurationUnit = 'days';
+      }
+    }
+    
+    // Update selectedStartOption by deriving it from the stored date
+    selectedStartOption = _deriveStartOption(plan.startDate);
+    
+    // Set durationController.text to the derived duration
     durationController = TextEditingController(text: selectedDuration.toString());
+    
+    // Only then attach the controller listener so the initial text change doesn't overwrite seeded values
     durationController.addListener(() {
       final intValue = int.tryParse(durationController.text);
       if (intValue != null && intValue > 0) {
@@ -487,6 +583,8 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                 updatedTreatment.treatmentPlan.timeOfDay = widget.treatment.treatmentPlan.timeOfDay;
                 // Preserve all dose times that were set in the schedule screen
                 updatedTreatment.treatmentPlan.doseTimes = List.from(widget.treatment.treatmentPlan.doseTimes);
+                // Preserve custom dose names that were set in the schedule screen
+                updatedTreatment.treatmentPlan.doseNamesMap = Map.from(widget.treatment.treatmentPlan.doseNamesMap);
                 
                 await treatmentManager.saveTreatment(updatedTreatment);
                 

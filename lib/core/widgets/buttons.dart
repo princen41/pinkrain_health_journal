@@ -172,7 +172,6 @@ class Button {
         backgroundColor: backgroundColor,
         foregroundColor: textColor,
         padding: padding,
-        minimumSize: const Size(double.infinity, 50),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(borderRadius),
           side: BorderSide(

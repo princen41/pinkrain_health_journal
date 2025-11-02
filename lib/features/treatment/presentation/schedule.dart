@@ -457,15 +457,20 @@ class ScheduleScreenState extends State<ScheduleScreen> {
           Expanded(
             child: Button.primary(
               onPressed: () {
-                // Parse ALL dose times for the treatment plan
+                // Parse ALL dose times for the treatment plan, preserving custom names
                 List<DateTime> allDoseTimes = [];
-                for (String timeStr in doseTimes.values) {
+                Map<String, DateTime> doseNamesMap = {};
+                for (var entry in doseTimes.entries) {
+                  final doseName = entry.key; // Preserve the custom dose name
+                  final timeStr = entry.value;
                   List<String> timeParts = timeStr.split(':');
                   if (timeParts.length == 2) {
                     int hour = int.tryParse(timeParts[0]) ?? 10;
                     int minute = int.tryParse(timeParts[1]) ?? 0;
                     final doseTime = createTimeOfDay(hour, minute);
                     allDoseTimes.add(doseTime);
+                    // Store the mapping of custom name to time
+                    doseNamesMap[doseName] = doseTime;
                   }
                 }
                 
@@ -476,6 +481,8 @@ class ScheduleScreenState extends State<ScheduleScreen> {
                 
                 // Set all dose times in the doseTimes list
                 widget.treatment.treatmentPlan.doseTimes = allDoseTimes;
+                // Set custom dose names map
+                widget.treatment.treatmentPlan.doseNamesMap = doseNamesMap;
                 
                 context.push('/duration', extra: widget.treatment);
               },

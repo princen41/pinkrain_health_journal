@@ -21,6 +21,10 @@ class UnitDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () async {
+        // Find the index of the current selection
+        final currentIndex = units.indexOf(value);
+        final initialIndex = currentIndex >= 0 ? currentIndex : 0;
+        
         await showCupertinoModalPopup(
           context: context,
           builder: (BuildContext context) {
@@ -29,6 +33,7 @@ class UnitDropdown extends StatelessWidget {
               color: Colors.white,
               child: CupertinoPicker(
                 itemExtent: 50,
+                scrollController: FixedExtentScrollController(initialItem: initialIndex),
                 onSelectedItemChanged: (int index) {
                   onChanged(units[index]);
                 },

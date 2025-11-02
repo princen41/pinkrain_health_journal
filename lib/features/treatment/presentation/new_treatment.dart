@@ -33,8 +33,8 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
   final TextEditingController commentController = TextEditingController();
 
   // Validation state
-  bool showNameError = false;
-  bool showDoseError = false;
+  String? nameError;
+  String? doseError;
   bool hideSuggestions = false;
 
   @override
@@ -243,11 +243,12 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
         CustomTextField(
           controller: nameController,
           hintText: 'Enter medicine name',
+          errorText: nameError,
           onChanged: () {
             setState(() {
               hideSuggestions = false; // Show suggestions again when user types
               if (nameController.text.isNotEmpty) {
-                showNameError = false;
+                nameError = null;
               }
             });
           },
@@ -335,12 +336,12 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
                         selectedColor = primaryColor;
                         selectedSecondaryColor = secondaryColor;
                         hideSuggestions = true; // Hide dropdown after selection
-                        showNameError = false;
+                        nameError = null;
                       });
                     } else {
                       setState(() {
                         hideSuggestions = true;
-                        showNameError = false;
+                        nameError = null;
                       });
                     }
                     
@@ -373,15 +374,6 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
             ),
           ),
         ],
-        if (showNameError) ...[
-          const SizedBox(height: 8),
-          Text(
-            'Medicine name is required',
-            style: AppTokens.textStyleSmall.copyWith(
-              color: AppTokens.stateError,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -395,17 +387,16 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
           quantityController: doseController,
           selectedUnit: selectedDoseUnit,
           onUnitChanged: (value) => setState(() => selectedDoseUnit = value!),
+          quantityError: doseError,
+          onQuantityChanged: () {
+            if (doseController.text.isNotEmpty) {
+              setState(() {
+                doseError = null;
+              });
+            }
+          },
           units: ['mg', 'g', 'ml'], // Treatment screens don't need 'pills'
         ),
-        if (showDoseError) ...[
-          const SizedBox(height: 8),
-          Text(
-            'Dosage amount is required',
-            style: AppTokens.textStyleSmall.copyWith(
-              color: AppTokens.stateError,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -541,21 +532,21 @@ class NewTreatmentScreenState extends ConsumerState<NewTreatmentScreen> {
     bool isValid = true;
 
     if (nameController.text.isEmpty) {
-      setState(() => showNameError = true);
+      setState(() => nameError = 'Medicine name is required');
       isValid = false;
     } else {
-      setState(() => showNameError = false);
+      setState(() => nameError = null);
     }
 
     if (doseController.text.isEmpty) {
-      setState(() => showDoseError = true);
+      setState(() => doseError = 'Dosage amount is required');
       isValid = false;
     } else {
       try {
         double.parse(doseController.text);
-        setState(() => showDoseError = false);
+        setState(() => doseError = null);
       } catch (e) {
-        setState(() => showDoseError = true);
+        setState(() => doseError = 'Dosage amount is required');
         isValid = false;
       }
     }

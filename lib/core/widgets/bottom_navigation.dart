@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hugeicons/hugeicons.dart';
 
@@ -17,6 +18,19 @@ dynamic _getIconForRoute(String route) {
     case 'wellness':
       return HugeIcons.strokeRoundedYoga03;
     default:
+      // Log warning about unknown route
+      debugPrint('⚠️ Unknown route in bottom navigation: "$route". Using fallback bookmark icon.');
+      
+      // In debug/dev mode, throw to surface the routing issue
+      if (kDebugMode) {
+        throw AssertionError(
+          'Unknown route "$route" passed to _getIconForRoute. '
+          'This indicates a routing configuration issue. '
+          'Valid routes are: journal, pillbox, mindfulness, wellness.'
+        );
+      }
+      
+      // Return safe fallback icon for release builds
       return HugeIcons.strokeRoundedBookmark02;
   }
 }

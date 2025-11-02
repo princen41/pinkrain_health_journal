@@ -5,6 +5,7 @@ This file contains attributions for third-party assets, libraries, and resources
 ## Icons
 
 ### Icon Kit
+
 - **Source**: [Noun Project](https://thenounproject.com/)
 - **Creator**: [Alex Muravev](https://thenounproject.com/)
 - **License**: [Creative Commons Attribution 3.0 Unported (CC BY 3.0)](https://creativecommons.org/licenses/by/3.0/)
@@ -16,13 +17,14 @@ This file contains attributions for third-party assets, libraries, and resources
 - ✅ Modification allowed
 - ✅ Distribution allowed
 
-For more information about the license, visit: https://creativecommons.org/licenses/by/3.0/
+For more information about the license, visit: <https://creativecommons.org/licenses/by/3.0/>
 
 ---
 
 ## Fonts
 
 ### Outfit
+
 - **Source**: [Google Fonts](https://fonts.google.com/specimen/Outfit)
 - **License**: SIL Open Font License 1.1
 - **Usage**: Primary font family used throughout the PinkRain app

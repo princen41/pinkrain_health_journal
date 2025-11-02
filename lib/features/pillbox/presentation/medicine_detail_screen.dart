@@ -37,6 +37,7 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
   late String selectedMedicationType;
   String? selectedColor;
   String? selectedSecondaryColor;
+  String? nameError;
 
   @override
   void initState() {
@@ -110,6 +111,15 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
               CustomTextField(
                 controller: nameController,
                 hintText: 'Paracetamol',
+                errorText: nameError,
+                onChanged: () {
+                  // Clear error when user starts typing
+                  if (nameError != null) {
+                    setState(() {
+                      nameError = null;
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 20),
               // Medication Type
@@ -170,40 +180,60 @@ class _EditMedicineDialogContentState extends State<_EditMedicineDialogContent> 
                 isDuotone: selectedMedicationType == 'Capsule',
               ),
               const SizedBox(height: 32),
-              // Save button
-              SizedBox(
-                width: double.infinity,
-                child: Button.primary(
-                  onPressed: () {
-                    if (nameController.text.trim().isEmpty) {
-                      return; // Don't save if name is empty
-                    }
-                    // Create color description for bicolore capsules
-                    String colorDescription = selectedColor ?? 'White';
-                    if (selectedMedicationType == 'Capsule' && selectedSecondaryColor != null) {
-                      colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
-                    }
-                    
-                    widget.notifier.updateMedicine(
-                      widget.inventory,
-                      nameController.text.trim(),
-                      selectedMedicationType,
-                      colorDescription,
-                    );
-                    Navigator.of(context).pop();
-                    widget.onUpdate();
-                  },
-                  text: 'Save',
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Cancel button
-              SizedBox(
-                width: double.infinity,
-                child: Button.secondary(
-                  onPressed: () => Navigator.of(context).pop(),
-                  text: 'Cancel',
-                ),
+              // Buttons row
+              Row(
+                children: [
+                  Expanded(
+                    child: Button.secondary(
+                      onPressed: () => Navigator.of(context).pop(),
+                      text: 'Cancel',
+                      size: ButtonSize.large,
+                      borderWidth: 0,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Button.primary(
+                      onPressed: () {
+                        // Clear any previous errors
+                        setState(() {
+                          nameError = null;
+                        });
+                        
+                        // Validate name is not empty
+                        if (nameController.text.trim().isEmpty) {
+                          setState(() {
+                            nameError = 'Medicine name is required';
+                          });
+                          return;
+                        }
+                        
+                        try {
+                        // Create color description for bicolore capsules
+                        String colorDescription = selectedColor ?? 'White';
+                        if (selectedMedicationType == 'Capsule' && selectedSecondaryColor != null) {
+                          colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
+                        }
+                        
+                        widget.notifier.updateMedicine(
+                          widget.inventory,
+                          nameController.text.trim(),
+                          selectedMedicationType,
+                          colorDescription,
+                        );
+                        widget.onUpdate();
+                        } on ArgumentError catch (e) {
+                          // Show error message below the name field
+                          setState(() {
+                            nameError = e.message;
+                          });
+                        }
+                      },
+                      text: 'Save',
+                      size: ButtonSize.large,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -862,7 +892,6 @@ void _showFillUpDialog(BuildContext context, PillBoxNotifier notifier, MedicineI
                                     newPillCount = (pillsLeft - pillsChange).clamp(0, pillsLeft).toInt();
                                   }
                                   notifier.updateMedicineQuantity(inventory, newPillCount);
-                                  safeSetState(() {}); // Refresh UI
                                   Navigator.of(dialogContext).pop();
                                 },
                           text: 'Update',

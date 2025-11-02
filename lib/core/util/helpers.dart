@@ -111,7 +111,7 @@ extension ListExtensions on List<IntakeLog> {
   List<IntakeLog> forEvening() {
     final list = where((t) {
       final time = t.doseTime ?? t.treatment.treatmentPlan.timeOfDay;
-      return time.hour >= 18 && time.hour < 20;
+      return time.hour >= 18 && time.hour < 21;
     }).toList();
     list.sort((a, b) {
       final timeA = a.doseTime ?? a.treatment.treatmentPlan.timeOfDay;
@@ -124,7 +124,7 @@ extension ListExtensions on List<IntakeLog> {
   List<IntakeLog> forNight() {
     final list = where((t) {
       final time = t.doseTime ?? t.treatment.treatmentPlan.timeOfDay;
-      return time.hour >= 20;
+      return time.hour >= 21;
     }).toList();
     list.sort((a, b) {
       final timeA = a.doseTime ?? a.treatment.treatmentPlan.timeOfDay;

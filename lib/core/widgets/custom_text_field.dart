@@ -2,6 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 
+const _kIconConstraints = BoxConstraints(
+  minWidth: 48,
+  minHeight: 48,
+  maxWidth: 48,
+  maxHeight: 48,
+);
+
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
@@ -49,24 +56,15 @@ class CustomTextField extends StatelessWidget {
         contentPadding: const EdgeInsets.all(15),
         prefixIcon: prefixIcon,
         prefixIconConstraints: prefixIcon != null
-            ? const BoxConstraints(
-                minWidth: 48,
-                minHeight: 48,
-                maxWidth: 48,
-                maxHeight: 48,
-              )
+            ? _kIconConstraints
             : null,
         suffixIcon: suffixIcon,
         suffixIconConstraints: suffixIcon != null
-            ? const BoxConstraints(
-                minWidth: 48,
-                minHeight: 48,
-                maxWidth: 48,
-                maxHeight: 48,
-              )
+            ? _kIconConstraints
             : null,
         errorText: errorText,
-        errorStyle: const TextStyle(
+        errorMaxLines: 3,
+        errorStyle: AppTokens.textStyleSmall.copyWith(
           color: AppTokens.stateError,
           fontSize: 12,
         ),

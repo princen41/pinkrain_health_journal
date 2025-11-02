@@ -54,8 +54,8 @@ Future<void> main() async {
     
     await notificationService.showUntakenMedicationNotifications(untakenMeds);
     devPrint('✅ App startup: Scheduled notifications for ${untakenMeds.length} medications');
-  } catch (e) {
-    debugPrint('❌ Notification service initialization failed: $e');
+  } catch (e, stackTrace) {
+    debugPrint('❌ Notification service initialization failed: $e\n$stackTrace');
     // Continue app startup even if notifications fail
   }
   
@@ -74,9 +74,7 @@ class MyApp extends ConsumerWidget{
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       routerConfig: router,
-      themeMode: ThemeMode.light, // This will use the device's theme settings
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
     );
   }
 }

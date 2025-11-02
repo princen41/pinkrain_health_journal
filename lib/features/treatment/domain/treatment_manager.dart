@@ -54,6 +54,7 @@ class Treatment {
         'endDate': treatmentPlan.endDate.toIso8601String(),
         'timeOfDay': treatmentPlan.timeOfDay.toIso8601String(),
         'doseTimes': treatmentPlan.doseTimes.map((t) => t.toIso8601String()).toList(),
+        'doseNamesMap': treatmentPlan.doseNamesMap.map((name, time) => MapEntry(name, time.toIso8601String())),
         'mealOption': treatmentPlan.mealOption,
         'instructions': treatmentPlan.instructions,
         'frequency': treatmentPlan.frequency.inDays,
@@ -94,11 +95,23 @@ class Treatment {
         }
       }
 
+      // Parse doseNamesMap if available, otherwise use empty map
+      Map<String, DateTime> doseNamesMap = {};
+      if (treatmentPlanJson.containsKey('doseNamesMap') && treatmentPlanJson['doseNamesMap'] != null) {
+        final doseNamesMapJson = treatmentPlanJson['doseNamesMap'] as Map<String, dynamic>?;
+        if (doseNamesMapJson != null) {
+          doseNamesMap = doseNamesMapJson.map((name, timeStr) => 
+            MapEntry(name, DateTime.parse(timeStr as String))
+          );
+        }
+      }
+
       final treatmentPlan = TreatmentPlan(
         startDate: DateTime.parse(treatmentPlanJson['startDate'] as String),
         endDate: DateTime.parse(treatmentPlanJson['endDate'] as String),
         timeOfDay: DateTime.parse(treatmentPlanJson['timeOfDay'] as String),
         doseTimes: doseTimes,
+        doseNamesMap: doseNamesMap,
         mealOption: treatmentPlanJson['mealOption'] as String,
         instructions: treatmentPlanJson['instructions'] as String,
         frequency: Duration(days: treatmentPlanJson['frequency'] as int),

@@ -869,15 +869,7 @@ class WellnessTrackerScreenState extends ConsumerState<WellnessTrackerScreen> {
           'assets/icons/${_getMoodIconName(index)}.svg',
           width: 50,
           height: 50,
-          colorFilter: isSelected
-              ? ColorFilter.mode(
-                  AppColors.pink100,
-                  BlendMode.srcIn,
-                )
-              : ColorFilter.mode(
-                  AppColors.black40,
-                  BlendMode.srcIn,
-                ),
+          colorFilter: _getMoodIconColorFilter(isSelected),
         ),
       );
     }
@@ -911,16 +903,22 @@ class WellnessTrackerScreenState extends ConsumerState<WellnessTrackerScreen> {
         'assets/icons/${_getMoodIconName(index)}.svg',
         width: 50,
         height: 50,
-        colorFilter: isSelected && intensity >= 500
-            ? ColorFilter.mode(
-                AppColors.pink100,
-                BlendMode.srcIn,
-              )
-            : ColorFilter.mode(
-                AppColors.black40,
-                BlendMode.srcIn,
-              ),
+        colorFilter: _getMoodIconColorFilter(isSelected, intensity: intensity),
       ),
+    );
+  }
+
+  /// Returns the appropriate ColorFilter for mood icons based on selection state and intensity
+  ColorFilter _getMoodIconColorFilter(bool isSelected, {int intensity = 500}) {
+    if (isSelected && intensity >= 500) {
+      return ColorFilter.mode(
+        AppColors.pink100,
+        BlendMode.srcIn,
+      );
+    }
+    return ColorFilter.mode(
+      AppColors.black40,
+      BlendMode.srcIn,
     );
   }
 

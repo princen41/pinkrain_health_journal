@@ -87,17 +87,33 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     
     // Initialize schedule and duration - load all existing dose times
     final existingDoseTimes = widget.treatment.treatmentPlan.getAllDoseTimes();
+    final doseNamesMap = widget.treatment.treatmentPlan.doseNamesMap;
     
     if (existingDoseTimes.isNotEmpty) {
       doseTimes = {};
       doseControllers = {};
-      for (int i = 0; i < existingDoseTimes.length; i++) {
-        final time = existingDoseTimes[i];
-        final hour = time.hour.toString().padLeft(2, '0');
-        final minute = time.minute.toString().padLeft(2, '0');
-        final doseKey = 'Dose ${i + 1}';
-        doseTimes[doseKey] = '$hour:$minute';
-        doseControllers[doseKey] = TextEditingController(text: doseKey);
+      
+      // If doseNamesMap exists, use it to restore custom names, otherwise use default names
+      if (doseNamesMap.isNotEmpty) {
+        // Use the saved custom names
+        for (var entry in doseNamesMap.entries) {
+          final doseName = entry.key;
+          final time = entry.value;
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          doseTimes[doseName] = '$hour:$minute';
+          doseControllers[doseName] = TextEditingController(text: doseName);
+        }
+      } else {
+        // Fallback to default names if no custom names were saved
+        for (int i = 0; i < existingDoseTimes.length; i++) {
+          final time = existingDoseTimes[i];
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          final doseKey = 'Dose ${i + 1}';
+          doseTimes[doseKey] = '$hour:$minute';
+          doseControllers[doseKey] = TextEditingController(text: doseKey);
+        }
       }
     } else {
       // Fallback to single dose if no dose times exist
@@ -375,9 +391,11 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   ),
                 );
 
-              // Parse ALL dose times for the treatment plan
+              // Parse ALL dose times for the treatment plan, preserving custom names
               List<DateTime> allDoseTimes = [];
+              Map<String, DateTime> doseNamesMap = {};
               for (var entry in doseTimes.entries) {
+                final doseName = entry.key; // Preserve the custom dose name
                 final timeStr = entry.value;
                 List<String> timeParts = timeStr.split(':');
                 if (timeParts.length == 2) {
@@ -385,6 +403,8 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   int minute = int.tryParse(timeParts[1]) ?? 0;
                   DateTime doseTime = createTimeOfDay(hour, minute);
                   allDoseTimes.add(doseTime);
+                  // Store the mapping of custom name to time
+                  doseNamesMap[doseName] = doseTime;
                 }
               }
               
@@ -442,6 +462,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 endDate: calculatedEndDate.normalize(),
                 timeOfDay: timeOfDay,
                 doseTimes: allDoseTimes, // Include all dose times
+                doseNamesMap: doseNamesMap, // Include custom dose names
                 mealOption: selectedMealOption,
                 instructions: widget.treatment.treatmentPlan.instructions,
                 frequency: widget.treatment.treatmentPlan.frequency,
@@ -735,6 +756,8 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                     startDate: widget.treatment.treatmentPlan.startDate,
                     endDate: selectedDate.subtract(const Duration(days: 1)).normalize(),
                     timeOfDay: widget.treatment.treatmentPlan.timeOfDay,
+                    doseTimes: widget.treatment.treatmentPlan.doseTimes,
+                    doseNamesMap: widget.treatment.treatmentPlan.doseNamesMap,
                     mealOption: widget.treatment.treatmentPlan.mealOption,
                     instructions: widget.treatment.treatmentPlan.instructions,
                     frequency: widget.treatment.treatmentPlan.frequency,
@@ -963,22 +986,11 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 GestureDetector(
                   onTap: () {
                     setState(() {
-                      // Dispose the controller
+                      // Dispose the controller for the deleted dose
                       doseControllers[doseName]?.dispose();
+                      // Remove only the deleted entry, keeping all other controllers and labels intact
                       doseControllers.remove(doseName);
                       doseTimes.remove(doseName);
-                      
-                      // Renumber remaining doses
-                      final newDoseTimes = <String, String>{};
-                      final newDoseControllers = <String, TextEditingController>{};
-                      final sortedKeys = doseTimes.keys.toList()..sort();
-                      for (int i = 0; i < sortedKeys.length; i++) {
-                        String newName = 'Dose ${i + 1}';
-                        newDoseTimes[newName] = doseTimes[sortedKeys[i]]!;
-                        newDoseControllers[newName] = TextEditingController(text: newName);
-                      }
-                      doseTimes = newDoseTimes;
-                      doseControllers = newDoseControllers;
                     });
                   },
                   child: Container(

@@ -72,7 +72,7 @@ class NotificationResponseHandler {
   @visibleForTesting
   Future<void> handleSnoozeAction(Map<String, dynamic> payload) async {
     // Get the notification ID and medication ID
-    final String medicationId = payload['medicationId'] ?? '';
+    final String medicationId = payload['medicationId']?.toString() ?? '';
     
     if (medicationId.isEmpty) {
       devPrint('❌ Cannot snooze: No medication ID provided in payload');
@@ -81,8 +81,8 @@ class NotificationResponseHandler {
     
     try {
       // Get medication data from payload
-      final String notificationId = payload['notificationId'] ?? '';
-      final String medicationName = payload['medicationName'] ?? 'medication';
+      final String notificationId = payload['notificationId']?.toString() ?? '';
+      final String medicationName = payload['medicationName']?.toString() ?? 'medication';
       
       devPrint('🔔 Processing snooze for medication: $medicationName (ID: $medicationId)');
       
@@ -112,7 +112,7 @@ class NotificationResponseHandler {
           
           // Use a consistent ID for the snoozed notification based on the original
           final int snoozeNotificationId = notificationId.isNotEmpty 
-              ? int.parse(notificationId) + 1000 // Derived from original ID
+              ? (int.tryParse(notificationId) ?? DateTime.now().millisecondsSinceEpoch % 100000000) + 1000 // Derived from original ID
               : DateTime.now().millisecondsSinceEpoch % 100000000; // Fallback
           
           // Schedule the snoozed notification
@@ -141,7 +141,7 @@ class NotificationResponseHandler {
   @visibleForTesting
   Future<void> handleMarkTakenAction(Map<String, dynamic> payload) async {
     // Get the medication ID
-    final String medicationId = payload['medicationId'] ?? '';
+    final String medicationId = payload['medicationId']?.toString() ?? '';
     
     if (medicationId.isEmpty) {
       devPrint('❌ Cannot mark medication as taken: No medication ID provided');
@@ -150,7 +150,7 @@ class NotificationResponseHandler {
     
     try {
       // Get medication name if available
-      final String medicationName = payload['medicationName'] ?? 'medication';
+      final String medicationName = payload['medicationName']?.toString() ?? 'medication';
       
       devPrint('💊 Processing mark as taken for: $medicationName (ID: $medicationId)');
       
@@ -165,10 +165,15 @@ class NotificationResponseHandler {
         // Only if scheduler is provided (production mode)
         final scheduler = _notificationScheduler;
         if (scheduler != null) {
-          final String notificationId = payload['notificationId'] ?? '';
+          final String notificationId = payload['notificationId']?.toString() ?? '';
           if (notificationId.isNotEmpty) {
-            await scheduler.cancelNotification(int.parse(notificationId));
-            devPrint('Cancelled notification ID: $notificationId');
+            final int? parsedId = int.tryParse(notificationId);
+            if (parsedId != null) {
+              await scheduler.cancelNotification(parsedId);
+              devPrint('Cancelled notification ID: $notificationId');
+            } else {
+              devPrint('⚠️ Cannot cancel notification: Invalid notification ID format: $notificationId');
+            }
           }
         }
         

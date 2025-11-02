@@ -567,11 +567,12 @@ class _AddMedicineDialogContentState extends ConsumerState<_AddMedicineDialogCon
                     child: Button.secondary(
                       onPressed: () => Navigator.of(context).pop(),
                       text: 'Cancel',
+                      size: ButtonSize.large,
+                      borderWidth: 0,
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: Button.primary(
+                  Button.primary(
                       onPressed: () {
                         if (validateAllFields()) {
                           // Create color description for bicolore capsules
@@ -596,38 +597,49 @@ class _AddMedicineDialogContentState extends ConsumerState<_AddMedicineDialogCon
                           
                           devPrint('[Pillbox] Medicine details - Name: ${widget.nameController.text.trim()}, Type: $selectedMedicationType, Color: $colorDescription, Unit: $selectedUnit');
                           newMedicine.addSpecification(specification);
+                          
+                          // Capture ScaffoldMessenger before popping to avoid deactivated context
+                          final scaffoldMessenger = ScaffoldMessenger.of(context);
+                          
                           try {
                             final notifier = widget.ref.read(pillBoxProvider.notifier);
                             notifier.addMedicine(newMedicine, quantity);
                             Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('${newMedicine.name} added to pillbox'),
-                                duration: const Duration(seconds: 2),
-                                backgroundColor: Colors.pink[300],
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15),
+                            
+                            // Use captured messenger after popping
+                            if (mounted) {
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content: Text('${newMedicine.name} added to pillbox'),
+                                  duration: const Duration(seconds: 2),
+                                  backgroundColor: Colors.pink[300],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error adding medication: ${e.toString()}'),
-                                duration: const Duration(seconds: 3),
-                                backgroundColor: Colors.red[300],
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15),
+                            // Use captured messenger for error case as well
+                            if (mounted) {
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content: Text('Error adding medication: ${e.toString()}'),
+                                  duration: const Duration(seconds: 3),
+                                  backgroundColor: Colors.red[300],
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                           }
                         }
                       },
                       text: 'Add Medication',
-                    ),
+                      size: ButtonSize.large,
                   ),
                 ],
               ),
