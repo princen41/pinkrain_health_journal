@@ -33,6 +33,14 @@ void devPrint(dynamic message) {
   }
 }
 
+/// Create a DateTime object for time-of-day only (date portion is arbitrary and consistent)
+/// This ensures all time-of-day comparisons work correctly regardless of actual date
+DateTime createTimeOfDay(int hour, int minute) {
+  // Use Unix epoch (1970-01-01) as the arbitrary date for all time-of-day values
+  // This ensures consistency across all time comparisons
+  return DateTime(1970, 1, 1, hour, minute);
+}
+
 extension DateTimeExtensions on DateTime {
   DateTime normalize() {
     return DateTime(year, month, day);
@@ -60,12 +68,70 @@ extension DateTimeExtensions on DateTime {
 }
 
 extension ListExtensions on List<IntakeLog> {
-  List<IntakeLog> forEvening() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour >= 14).toList();
+  List<IntakeLog> forMorning() {
+    final list = where((t) {
+      // Use the specific dose time if available, otherwise fall back to treatment's general time
+      final time = t.doseTime ?? t.treatment.treatmentPlan.timeOfDay;
+      return time.hour >= 0 && time.hour < 12;
+    }).toList();
+    list.sort((a, b) {
+      final timeA = a.doseTime ?? a.treatment.treatmentPlan.timeOfDay;
+      final timeB = b.doseTime ?? b.treatment.treatmentPlan.timeOfDay;
+      return timeA.compareTo(timeB);
+    });
+    return list;
   }
 
-  List<IntakeLog> forMorning() {
-    return where((t) => t.treatment.treatmentPlan.timeOfDay.hour <= 12).toList();
+  List<IntakeLog> forNoon() {
+    final list = where((t) {
+      final time = t.doseTime ?? t.treatment.treatmentPlan.timeOfDay;
+      return time.hour >= 12 && time.hour < 14;
+    }).toList();
+    list.sort((a, b) {
+      final timeA = a.doseTime ?? a.treatment.treatmentPlan.timeOfDay;
+      final timeB = b.doseTime ?? b.treatment.treatmentPlan.timeOfDay;
+      return timeA.compareTo(timeB);
+    });
+    return list;
+  }
+
+  List<IntakeLog> forAfternoon() {
+    final list = where((t) {
+      final time = t.doseTime ?? t.treatment.treatmentPlan.timeOfDay;
+      return time.hour >= 14 && time.hour < 18;
+    }).toList();
+    list.sort((a, b) {
+      final timeA = a.doseTime ?? a.treatment.treatmentPlan.timeOfDay;
+      final timeB = b.doseTime ?? b.treatment.treatmentPlan.timeOfDay;
+      return timeA.compareTo(timeB);
+    });
+    return list;
+  }
+
+  List<IntakeLog> forEvening() {
+    final list = where((t) {
+      final time = t.doseTime ?? t.treatment.treatmentPlan.timeOfDay;
+      return time.hour >= 18 && time.hour < 21;
+    }).toList();
+    list.sort((a, b) {
+      final timeA = a.doseTime ?? a.treatment.treatmentPlan.timeOfDay;
+      final timeB = b.doseTime ?? b.treatment.treatmentPlan.timeOfDay;
+      return timeA.compareTo(timeB);
+    });
+    return list;
+  }
+
+  List<IntakeLog> forNight() {
+    final list = where((t) {
+      final time = t.doseTime ?? t.treatment.treatmentPlan.timeOfDay;
+      return time.hour >= 21;
+    }).toList();
+    list.sort((a, b) {
+      final timeA = a.doseTime ?? a.treatment.treatmentPlan.timeOfDay;
+      final timeB = b.doseTime ?? b.treatment.treatmentPlan.timeOfDay;
+      return timeA.compareTo(timeB);
+    });
+    return list;
   }
 }
 
@@ -97,12 +163,14 @@ extension IntExtension on int {
 final Map<String, Color> colorMap = ColorPicker.colorMap;
 
 
-FutureBuilder<SvgPicture> futureBuildSvg(String text, String selectedColor, [double size = 30, String? secondaryColor]) {
+FutureBuilder<SvgPicture> futureBuildSvg(String text, String? selectedColor, [double size = 30, String? secondaryColor]) {
+  // Use 'White' as default when selectedColor is null
+  final String effectiveColor = selectedColor ?? 'White';
   return FutureBuilder<SvgPicture>(
       future: appSvgDynamicImage(
           fileName: text.toLowerCase(),
           size: size,
-          color: colorMap[selectedColor],
+          color: colorMap[effectiveColor],
           secondaryColor: secondaryColor != null ? colorMap[secondaryColor] : null,
           useColorFilter: false
       ),
@@ -111,7 +179,7 @@ FutureBuilder<SvgPicture> futureBuildSvg(String text, String selectedColor, [dou
             appVectorImage(
                 fileName: text.toLowerCase(),
                 size: size,
-                color: colorMap[selectedColor],
+                color: colorMap[effectiveColor],
                 useColorFilter: false
             );
       }

@@ -11,6 +11,7 @@ class MindfulnessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: buildAppBar('Mindfulness'),
       body: SafeArea(
         child: Padding(

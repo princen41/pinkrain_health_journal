@@ -15,6 +15,7 @@ class HiveService {
   static const String lastMoodDateKey = 'lastMoodDate';
   static const String userMoodKey = 'userMood';
   static const String userMoodDescriptionKey = 'userMoodDescription';
+  static const String userNameKey = 'userName';
 
   /// Initialize Hive
   static Future<void> init() async {
@@ -115,6 +116,27 @@ class HiveService {
     }
   }
 
+  /// Save user name
+  static Future<void> saveUserName(String name) async {
+    try {
+      final box = await _openBox(userPrefsBox);
+      await box.put(userNameKey, name);
+    } catch (e) {
+      devPrint('Error saving user name: $e');
+    }
+  }
+
+  /// Get user name
+  static Future<String> getUserName() async {
+    try {
+      final box = await _openBox(userPrefsBox);
+      return await box.get(userNameKey, defaultValue: '');
+    } catch (e) {
+      devPrint('Error getting user name: $e');
+      return ''; // Default to empty string
+    }
+  }
+
   /// Get last mood date
   static Future<String?> getLastMoodDate() async {
     try {
@@ -126,15 +148,39 @@ class HiveService {
     }
   }
 
-  // Get mood data for a specific date
+  // Get mood data for a specific date (returns latest entry for backward compatibility)
   static Future<Map<String, dynamic>?> getMoodForDate(DateTime date) async {
+    try {
+      final entries = await getMoodEntriesForDate(date);
+      return entries != null && entries.isNotEmpty ? entries.last : null;
+    } catch (e) {
+      devPrint('Error getting mood data: $e');
+      return null;
+    }
+  }
+
+  // Get all mood entries for a specific date
+  static Future<List<Map<String, dynamic>>?> getMoodEntriesForDate(DateTime date) async {
     try {
       final box = await _openBox(moodBoxName);
       final dateKey = DateFormat('yyyy-MM-dd').format(date);
-      final moodData = await box.get('mood_$dateKey');
-      return moodData != null ? Map<String, dynamic>.from(moodData) : null;
+      final data = await box.get('mood_$dateKey');
+      
+      if (data == null) return null;
+      
+      // Handle backward compatibility: if it's a single entry, convert to list
+      if (data is Map && data.containsKey('mood')) {
+        return [Map<String, dynamic>.from(data)];
+      }
+      
+      // Handle new format: list of entries
+      if (data is List) {
+        return data.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      
+      return null;
     } catch (e) {
-      devPrint('Error getting mood data: $e');
+      devPrint('Error getting mood entries: $e');
       return null;
     }
   }
@@ -151,7 +197,7 @@ class HiveService {
     }
   }
 
-  // Save mood data for a specific date
+  // Save mood data for a specific date (replaces all entries)
   static Future<void> saveMoodForDate(
       DateTime date, int mood, String description) async {
     try {
@@ -162,12 +208,14 @@ class HiveService {
       final box = Hive.box(moodBoxName);
       final dateKey = DateFormat('yyyy-MM-dd').format(date);
 
-      // Save the mood data
-      await box.put('mood_$dateKey', {
-        'mood': mood,
-        'description': description,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
+      // Save as a list with single entry
+      await box.put('mood_$dateKey', [
+        {
+          'mood': mood,
+          'description': description,
+          'timestamp': DateTime.now().toIso8601String(),
+        }
+      ]);
 
       // If it's today, also update current mood
       final today = DateTime.now();
@@ -185,6 +233,133 @@ class HiveService {
     } catch (e) {
       devPrint('Error saving mood data for date: $e');
       rethrow; // Rethrow to allow proper error handling upstream
+    }
+  }
+
+  // Add a new mood entry to existing entries for a date
+  static Future<void> addMoodEntryForDate(
+      DateTime date, int mood, String description) async {
+    try {
+      // Ensure the box is open
+      if (!Hive.isBoxOpen(moodBoxName)) {
+        await Hive.openBox(moodBoxName);
+      }
+      final box = Hive.box(moodBoxName);
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+
+      // Get existing entries
+      final existingEntries = await getMoodEntriesForDate(date) ?? [];
+      
+      // Add new entry
+      final newEntry = {
+        'mood': mood,
+        'description': description,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      
+      existingEntries.add(newEntry);
+      
+      // Save updated list
+      await box.put('mood_$dateKey', existingEntries);
+
+      // If it's today, also update current mood to the latest
+      final today = DateTime.now();
+      final isToday = date.year == today.year &&
+          date.month == today.month &&
+          date.day == today.day;
+
+      if (isToday) {
+        await saveUserMood(mood, description);
+        await setMoodEntryForToday();
+      }
+
+      devPrint(
+          'Successfully added mood entry $mood with description "$description" for date $dateKey');
+    } catch (e) {
+      devPrint('Error adding mood entry for date: $e');
+      rethrow;
+    }
+  }
+
+  // Delete a specific mood entry by timestamp
+  static Future<void> deleteMoodEntry(DateTime date, String timestamp) async {
+    try {
+      if (!Hive.isBoxOpen(moodBoxName)) {
+        await Hive.openBox(moodBoxName);
+      }
+      final box = Hive.box(moodBoxName);
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+
+      // Get existing entries
+      final existingEntries = await getMoodEntriesForDate(date);
+      if (existingEntries == null || existingEntries.isEmpty) {
+        devPrint('No mood entries found for date $dateKey');
+        return;
+      }
+
+      // Remove the entry with matching timestamp
+      existingEntries.removeWhere((entry) {
+        final entryTimestamp = entry['timestamp'];
+        return entryTimestamp == timestamp;
+      });
+
+      // If no entries left, delete the key entirely
+      if (existingEntries.isEmpty) {
+        await box.delete('mood_$dateKey');
+        devPrint('Deleted all mood entries for date $dateKey');
+      } else {
+        // Save the updated list
+        await box.put('mood_$dateKey', existingEntries);
+        devPrint('Deleted mood entry with timestamp $timestamp for date $dateKey');
+      }
+    } catch (e) {
+      devPrint('Error deleting mood entry: $e');
+      rethrow;
+    }
+  }
+
+  // Update a specific mood entry by timestamp
+  static Future<void> updateMoodEntry(
+    DateTime date,
+    String timestamp,
+    int newMood,
+    String newDescription,
+  ) async {
+    try {
+      if (!Hive.isBoxOpen(moodBoxName)) {
+        await Hive.openBox(moodBoxName);
+      }
+      final box = Hive.box(moodBoxName);
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+
+      // Get existing entries
+      final existingEntries = await getMoodEntriesForDate(date);
+      if (existingEntries == null || existingEntries.isEmpty) {
+        devPrint('No mood entries found for date $dateKey');
+        return;
+      }
+
+      // Find and update the entry with matching timestamp
+      bool updated = false;
+      for (var entry in existingEntries) {
+        if (entry['timestamp'] == timestamp) {
+          entry['mood'] = newMood;
+          entry['description'] = newDescription;
+          updated = true;
+          break;
+        }
+      }
+
+      if (updated) {
+        // Save the updated list
+        await box.put('mood_$dateKey', existingEntries);
+        devPrint('Updated mood entry with timestamp $timestamp for date $dateKey');
+      } else {
+        devPrint('Could not find mood entry with timestamp $timestamp');
+      }
+    } catch (e) {
+      devPrint('Error updating mood entry: $e');
+      rethrow;
     }
   }
 
@@ -341,7 +516,27 @@ class HiveService {
     try {
       final box = await _openBox(treatmentsBoxName);
       final treatments = await getTreatments();
-      treatments.add(treatment);
+      
+      // Check if treatment with same ID already exists - if so, update it instead of adding duplicate
+      final treatmentId = treatment['id']?.toString();
+      if (treatmentId != null && treatmentId.isNotEmpty) {
+        final existingIndex = treatments.indexWhere((t) {
+          final tId = t['id']?.toString();
+          return tId == treatmentId;
+        });
+        
+        if (existingIndex != -1) {
+          devPrint("Treatment with ID $treatmentId already exists, updating at index $existingIndex instead of adding duplicate");
+          treatments[existingIndex] = treatment;
+        } else {
+          devPrint("Treatment with ID $treatmentId not found, adding new treatment");
+          treatments.add(treatment);
+        }
+      } else {
+        // No ID, just add it
+        treatments.add(treatment);
+      }
+      
       // Sanitize and store
       final sanitizedList = _sanitizeList(treatments);
       await box.put('treatments', sanitizedList);
@@ -370,16 +565,51 @@ class HiveService {
         }
       }
       
-      // Find the index by matching all fields (or you can refine this to use only unique fields)
+      // First try to find by ID directly (most reliable)
+      final oldTreatmentId = oldTreatment['id']?.toString();
+      final updatedTreatmentId = updatedTreatment['id']?.toString();
+      
+      // CRITICAL FIX: Remove ALL treatments with the same ID (to handle duplicates)
+      // Then add the updated one
+      if (oldTreatmentId != null && oldTreatmentId.isNotEmpty) {
+        final initialCount = treatments.length;
+        treatments.removeWhere((t) {
+          final tId = t['id']?.toString();
+          return tId == oldTreatmentId;
+        });
+        final removedCount = initialCount - treatments.length;
+        devPrint("Looking for treatment with ID: $oldTreatmentId, found and removed $removedCount duplicate(s)");
+        
+        // Now add the updated treatment
+        treatments.add(updatedTreatment);
+        devPrint("Added updated treatment with ID: $updatedTreatmentId");
+        
+        // Sanitize and store
+        final sanitizedList = _sanitizeList(treatments);
+        await box.put('treatments', sanitizedList);
+        devPrint("Successfully updated treatment in storage (removed $removedCount duplicate(s))");
+        return; // Success, exit early
+      }
+      
+      // Fallback: If no ID, try the _treatmentEquals method
       final index = treatments.indexWhere((t) => _treatmentEquals(t, oldTreatment));
+      devPrint("Tried matching by _treatmentEquals, index: $index");
+      
       if (index != -1) {
-        devPrint("Updating treatment at index $index with ID: ${updatedTreatment['id']}");
+        devPrint("Updating treatment at index $index with ID: $updatedTreatmentId");
         treatments[index] = updatedTreatment;
         // Sanitize and store
         final sanitizedList = _sanitizeList(treatments);
         await box.put('treatments', sanitizedList);
+        devPrint("Successfully updated treatment in storage");
       } else {
-        devPrint('Treatment to update not found.');
+        final errorMsg = 'Treatment to update not found. ID: $oldTreatmentId, Total treatments: ${treatments.length}';
+        devPrint(errorMsg);
+        // Log all treatment IDs for debugging
+        for (int i = 0; i < treatments.length; i++) {
+          devPrint("Treatment $i ID: ${treatments[i]['id']?.toString()}");
+        }
+        throw Exception(errorMsg);
       }
     } catch (e) {
       devPrint('Error updating treatment: $e');
@@ -464,6 +694,32 @@ class HiveService {
     }
   }
 
+  /// Deduplicate treatments in storage, keeping only one per ID (most recent)
+  static Future<void> deduplicateTreatments() async {
+    try {
+      final storedTreatments = await getTreatments();
+      final Map<String, Map<String, dynamic>> uniqueTreatments = {};
+      
+      // Keep the last occurrence of each ID (most recent)
+      for (final treatmentMap in storedTreatments) {
+        final treatmentId = treatmentMap['id']?.toString();
+        if (treatmentId != null && treatmentId.isNotEmpty) {
+          uniqueTreatments[treatmentId] = _sanitizeMap(treatmentMap);
+        }
+      }
+      
+      // Save back the deduplicated list only if we found duplicates
+      if (uniqueTreatments.length < storedTreatments.length) {
+        final box = await _openBox(treatmentsBoxName);
+        final sanitizedList = _sanitizeList(uniqueTreatments.values.toList());
+        await box.put('treatments', sanitizedList);
+        devPrint("Deduplicated treatments: ${storedTreatments.length} -> ${uniqueTreatments.length}");
+      }
+    } catch (e) {
+      devPrint('Error deduplicating treatments: $e');
+    }
+  }
+
   /// Helper method to sanitize maps for consistent storage/retrieval
   static Map<String, dynamic> _sanitizeMap(Map<dynamic, dynamic> map) {
     return Map<String, dynamic>.fromEntries(
@@ -513,6 +769,57 @@ class HiveService {
       return data;
     }
     return [];
+  }
+
+  /// Delete all user data from the device
+  /// This permanently deletes all stored data including:
+  /// - Mood entries
+  /// - Symptom data
+  /// - Medication logs
+  /// - Treatments
+  /// - Pillbox data
+  /// - User preferences (including name)
+  static Future<void> deleteAllData() async {
+    try {
+      devPrint('🗑️ Starting deletion of all user data...');
+      
+      // Delete all boxes from disk
+      final boxes = [
+        userPrefsBox,
+        moodBoxName,
+        symptomBoxName,
+        medicationLogsBoxName,
+        treatmentsBoxName,
+        pillboxBoxName,
+      ];
+      
+      for (final boxName in boxes) {
+        try {
+          // Close the box if it's open
+          if (Hive.isBoxOpen(boxName)) {
+            await Hive.box(boxName).close();
+          }
+          // Delete the box from disk
+          await Hive.deleteBoxFromDisk(boxName);
+          devPrint('✅ Deleted box: $boxName');
+        } catch (e) {
+          devPrint('⚠️ Error deleting box $boxName: $e');
+        }
+      }
+      
+      // Reinitialize boxes (they will be empty)
+      await _openBox(userPrefsBox);
+      await _openBox(moodBoxName);
+      await _openBox(symptomBoxName);
+      await _openBox(medicationLogsBoxName);
+      await _openBox(treatmentsBoxName);
+      await _openBox(pillboxBoxName);
+      
+      devPrint('✅ All user data deleted successfully');
+    } catch (e) {
+      devPrint('❌ Error deleting all data: $e');
+      rethrow;
+    }
   }
 }
 

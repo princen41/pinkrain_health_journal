@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'colors.dart';
 
 class AppTokens {
@@ -8,6 +9,48 @@ class AppTokens {
   static const textDisabled = AppColors.black40;
 
   static const textInvert = AppColors.white100;
+
+  // FONT WEIGHTS
+  static const fontWeightNormal = FontWeight.normal;
+  static const fontWeightBold = FontWeight.bold;
+  static const fontWeightW400 = FontWeight.w400;
+  static const fontWeightW500 = FontWeight.w500;
+  static const fontWeightW600 = FontWeight.w600;
+
+  // DEFAULT TEXT STYLES
+  static const TextStyle textStyleDefault = TextStyle(
+    color: textPrimary,
+    fontWeight: fontWeightBold,
+    fontFamily: 'Outfit',
+  );
+  
+  static const TextStyle textStyleSmall = TextStyle(
+    color: textPrimary,
+    fontWeight: fontWeightBold,
+    fontSize: 14,
+    fontFamily: 'Outfit',
+  );
+  
+  static const TextStyle textStyleMedium = TextStyle(
+    color: textPrimary,
+    fontWeight: fontWeightBold,
+    fontSize: 16,
+    fontFamily: 'Outfit',
+  );
+  
+  static const TextStyle textStyleLarge = TextStyle(
+    color: textPrimary,
+    fontWeight: fontWeightBold,
+    fontSize: 18,
+    fontFamily: 'Outfit',
+  );
+  
+  static const TextStyle textStyleXLarge = TextStyle(
+    color: textPrimary,
+    fontWeight: fontWeightBold,
+    fontSize: 24,
+    fontFamily: 'Outfit',
+  );
 
 
   // BACKGROUND

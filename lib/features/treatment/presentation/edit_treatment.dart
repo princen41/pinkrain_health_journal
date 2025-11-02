@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:hux/hux.dart';
 import 'package:pinkrain/core/util/helpers.dart';
 import 'package:pinkrain/core/widgets/index.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
 
 import '../../../core/models/medicine_model.dart';
 import '../../../core/theme/icons.dart';
+import '../../../core/theme/colors.dart';
+import '../../../core/services/hive_service.dart';
 import '../../../features/journal/presentation/journal_notifier.dart';
 import '../data/treatment.dart';
 import '../domain/treatment_manager.dart';
+import '../services/medication_notification_service.dart';
 
 class EditTreatmentScreen extends ConsumerStatefulWidget {
   final Treatment treatment;
@@ -25,11 +32,23 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
   late TextEditingController nameController;
   late TextEditingController doseController;
   late TextEditingController commentController;
+  late TextEditingController durationController;
   late String selectedTreatmentType;
-  late String selectedColor;
-  late String? selectedSecondaryColor;
+  String? selectedColor;
+  String? selectedSecondaryColor;
   late String selectedMealOption;
   late String selectedDoseUnit;
+  
+  // Schedule and duration state
+  late Map<String, String> doseTimes;
+  late Map<String, TextEditingController> doseControllers;
+  late String selectedReminder;
+  late List<bool> selectedDays;
+  late int selectedDuration;
+  late String selectedDurationUnit;
+  late bool isUnlimitedDuration;
+  late DateTime startDate;
+  late String selectedStartOption;
 
   @override
   void initState() {
@@ -37,11 +56,79 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     nameController = TextEditingController(text: widget.treatment.medicine.name);
     doseController = TextEditingController(text: widget.treatment.medicine.specs.dosage.toString());
     commentController = TextEditingController(text: widget.treatment.notes);
+    final durationDays = widget.treatment.treatmentPlan.endDate.difference(widget.treatment.treatmentPlan.startDate).inDays + 1;
+    selectedDuration = durationDays;
+    durationController = TextEditingController(text: durationDays.toString());
+    durationController.addListener(() {
+      final intValue = int.tryParse(durationController.text);
+      if (intValue != null && intValue > 0) {
+        selectedDuration = intValue;
+      }
+    });
     selectedTreatmentType = widget.treatment.medicine.type;
-    selectedColor = widget.treatment.medicine.color;
-    selectedSecondaryColor = null; // Initialize as null for now
+    
+    // Parse bicolore colors from stored color string
+    String colorString = widget.treatment.medicine.color;
+    if (selectedTreatmentType == 'Capsule' && colorString.contains('&')) {
+      final parts = colorString.split('&');
+      if (parts.length == 2) {
+        selectedColor = parts[0].trim();
+        selectedSecondaryColor = parts[1].trim();
+      } else {
+        selectedColor = colorString;
+        selectedSecondaryColor = null;
+      }
+    } else {
+      selectedColor = colorString;
+      selectedSecondaryColor = null;
+    }
     selectedMealOption = widget.treatment.treatmentPlan.mealOption;
     selectedDoseUnit = widget.treatment.medicine.specs.unit;
+    
+    // Initialize schedule and duration - load all existing dose times
+    final existingDoseTimes = widget.treatment.treatmentPlan.getAllDoseTimes();
+    final doseNamesMap = widget.treatment.treatmentPlan.doseNamesMap;
+    
+    if (existingDoseTimes.isNotEmpty) {
+      doseTimes = {};
+      doseControllers = {};
+      
+      // If doseNamesMap exists, use it to restore custom names, otherwise use default names
+      if (doseNamesMap.isNotEmpty) {
+        // Use the saved custom names
+        for (var entry in doseNamesMap.entries) {
+          final doseName = entry.key;
+          final time = entry.value;
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          doseTimes[doseName] = '$hour:$minute';
+          doseControllers[doseName] = TextEditingController(text: doseName);
+        }
+      } else {
+        // Fallback to default names if no custom names were saved
+        for (int i = 0; i < existingDoseTimes.length; i++) {
+          final time = existingDoseTimes[i];
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          final doseKey = 'Dose ${i + 1}';
+          doseTimes[doseKey] = '$hour:$minute';
+          doseControllers[doseKey] = TextEditingController(text: doseKey);
+        }
+      }
+    } else {
+      // Fallback to single dose if no dose times exist
+      doseTimes = {'Dose 1': widget.treatment.formattedTimeOfDay()};
+      doseControllers = {'Dose 1': TextEditingController(text: 'Dose 1')};
+    }
+    selectedReminder = 'at time of event';
+    selectedDays = List.from(widget.treatment.treatmentPlan.selectedDays);
+    selectedDurationUnit = 'days';
+    startDate = widget.treatment.treatmentPlan.startDate;
+    selectedStartOption = 'Select specific date';
+    
+    // Check if this is an unlimited duration treatment (end date > 50 years in future)
+    final durationYears = widget.treatment.treatmentPlan.endDate.difference(widget.treatment.treatmentPlan.startDate).inDays / 365;
+    isUnlimitedDuration = durationYears > 50;
   }
 
   @override
@@ -49,49 +136,79 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     nameController.dispose();
     doseController.dispose();
     commentController.dispose();
+    durationController.dispose();
+    // Dispose all dose controllers
+    for (var controller in doseControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Treatment'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
+    return CupertinoPageScaffold(
+      backgroundColor: AppTokens.bgPrimary,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppTokens.bgPrimary,
+        border: Border(
+          bottom: BorderSide(
+            color: AppTokens.borderLight,
+            width: 0.5,
+          ),
         ),
+        leading: GestureDetector(
+          onTap: () => context.pop(),
+          child: Container(
+            padding: const EdgeInsets.all(0),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedCancel01,
+              color: AppTokens.textPrimary,
+              size: 28,
+            ),
+          ),
+        ),
+        middle: Text(
+          'Edit Treatment',
+          style: AppTokens.textStyleLarge,
+        ),
+        trailing: Container(width: 0), // Balance the back button
       ),
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTreatmentTypeOptions(),
-                const SizedBox(height: 30),
-                _buildColorOptions(),
-                const SizedBox(height: 30),
-                _buildNameField(),
-                const SizedBox(height: 30),
-                _buildDoseField(),
-                const SizedBox(height: 30),
-                _buildMealOptions(),
-                const SizedBox(height: 30),
-                _buildCommentField(),
-                const SizedBox(height: 30),
-                Center(
-                  child: _buildSaveButton(),
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: _buildDeleteButton(),
-                ),
-              ],
+      child: Material(
+        color: AppTokens.bgPrimary,
+        child: GestureDetector(
+          onTap: () {
+            // Dismiss keyboard when tapping outside text fields
+            FocusScope.of(context).unfocus();
+          },
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  _buildNameField(),
+                  const SizedBox(height: 30),
+                  _buildTreatmentTypeOptions(),
+                  const SizedBox(height: 30),
+                  _buildColorOptions(),
+                  const SizedBox(height: 30),
+                  _buildDoseField(),
+                  const SizedBox(height: 30),
+                  _buildMealOptions(),
+                  const SizedBox(height: 30),
+                  _buildScheduleSection(),
+                  const SizedBox(height: 30),
+                  _buildDurationSection(),
+                  const SizedBox(height: 30),
+                  _buildCommentField(),
+                  const SizedBox(height: 60),
+                  _buildSaveButton(),
+                  const SizedBox(height: 20),
+                  _buildDeleteButton(),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
         ),
@@ -255,11 +372,17 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
         onPressed: () async {
           if (_validateInput()) {
             try {
+              // Create color description for bicolore capsules
+              String colorDescription = selectedColor ?? 'White';
+              if (selectedTreatmentType == 'Capsule' && selectedSecondaryColor != null) {
+                colorDescription = '${selectedColor ?? 'White'} & $selectedSecondaryColor';
+              }
+
               // Create updated medicine
               final updatedMedicine = Medicine(
                 name: nameController.text,
                 type: selectedTreatmentType,
-                color: selectedColor, // Store the color name, not the Color object string
+                color: colorDescription,
               )..addSpecification(
                   Specification(
                     dosage: double.tryParse(doseController.text) ?? widget.treatment.medicine.specs.dosage,
@@ -268,14 +391,79 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   ),
                 );
 
-              // Create updated treatment plan preserving original fields
+              // Parse ALL dose times for the treatment plan, preserving custom names
+              List<DateTime> allDoseTimes = [];
+              Map<String, DateTime> doseNamesMap = {};
+              for (var entry in doseTimes.entries) {
+                final doseName = entry.key; // Preserve the custom dose name
+                final timeStr = entry.value;
+                List<String> timeParts = timeStr.split(':');
+                if (timeParts.length == 2) {
+                  int hour = int.tryParse(timeParts[0]) ?? 10;
+                  int minute = int.tryParse(timeParts[1]) ?? 0;
+                  DateTime doseTime = createTimeOfDay(hour, minute);
+                  allDoseTimes.add(doseTime);
+                  // Store the mapping of custom name to time
+                  doseNamesMap[doseName] = doseTime;
+                }
+              }
+              
+              // Use the first dose time as the primary timeOfDay for backward compatibility
+              DateTime timeOfDay = allDoseTimes.isNotEmpty 
+                  ? allDoseTimes.first 
+                  : createTimeOfDay(10, 0);
+
+              // Convert duration based on selected unit
+              DateTime calculatedEndDate;
+              
+              if (isUnlimitedDuration) {
+                // Set end date to 100 years in the future for unlimited duration
+                calculatedEndDate = DateTime(startDate.year + 100, startDate.month, startDate.day);
+              } else {
+                switch (selectedDurationUnit) {
+                  case 'days':
+                    calculatedEndDate = startDate.add(Duration(days: selectedDuration - 1));
+                    break;
+                  case 'weeks':
+                    calculatedEndDate = startDate.add(Duration(days: selectedDuration * 7 - 1));
+                    break;
+                  case 'months':
+                    // Use real month arithmetic instead of 30-day approximation
+                    int targetYear = startDate.year;
+                    int targetMonth = startDate.month + selectedDuration;
+                    
+                    // Handle year overflow
+                    while (targetMonth > 12) {
+                      targetMonth -= 12;
+                      targetYear += 1;
+                    }
+                    
+                    // Handle cases where target month has fewer days
+                    int targetDay = startDate.day;
+                    int daysInTargetMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+                    if (targetDay > daysInTargetMonth) {
+                      targetDay = daysInTargetMonth;
+                    }
+                    
+                    // Calculate end date using clamped target date
+                    calculatedEndDate = DateTime(targetYear, targetMonth, targetDay);
+                    break;
+                  default:
+                    calculatedEndDate = startDate.add(Duration(days: selectedDuration - 1));
+                }
+              }
+
+              // Create updated treatment plan with schedule and duration data
               final updatedTreatmentPlan = TreatmentPlan(
-                startDate: widget.treatment.treatmentPlan.startDate,
-                endDate: widget.treatment.treatmentPlan.endDate,
-                timeOfDay: widget.treatment.treatmentPlan.timeOfDay,
+                startDate: startDate,
+                endDate: calculatedEndDate.normalize(),
+                timeOfDay: timeOfDay,
+                doseTimes: allDoseTimes, // Include all dose times
+                doseNamesMap: doseNamesMap, // Include custom dose names
                 mealOption: selectedMealOption,
                 instructions: widget.treatment.treatmentPlan.instructions,
                 frequency: widget.treatment.treatmentPlan.frequency,
+                selectedDays: selectedDays,
               );
 
               // Create updated treatment
@@ -290,6 +478,11 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
               devPrint("Updating treatment - ID: ${widget.treatment.id}, Name: ${widget.treatment.medicine.name} → ${updatedTreatment.medicine.name}");
               devPrint("Treatment ID being used: ${updatedTreatment.id}");
               devPrint("Original dose: ${widget.treatment.medicine.specs.dosage} → New dose: ${updatedTreatment.medicine.specs.dosage}");
+              devPrint("Selected Days: $selectedDays");
+              devPrint("Days: [M, Tu, W, Th, F, Sa, Su]");
+              for (int i = 0; i < selectedDays.length; i++) {
+                devPrint("Day $i (${['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'][i]}): ${selectedDays[i]}");
+              }
               // Update treatment in database
               await treatmentManager.updateTreatment(widget.treatment, updatedTreatment);
 
@@ -302,24 +495,26 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   // Directly clear all cached medication logs
                   journalLog.clearAllCachedMedicationLogs();
 
-                  // Force reload of today's data
-                  final today = DateTime.now().normalize();
-                  await journalLog.forceReloadMedicationLogs(today);
+                  // Force reload ALL dates in the treatment range
+                  final startDate = updatedTreatment.treatmentPlan.startDate;
+                  final endDate = updatedTreatment.treatmentPlan.endDate;
+                  
+                  devPrint("Reloading logs for treatment range: $startDate to $endDate");
+                  
+                  // Reload all dates in the range (limited to reasonable range to avoid performance issues)
+                  DateTime currentDate = startDate;
+                  int daysLoaded = 0;
+                  while (!currentDate.isAfter(endDate) && daysLoaded < 365) { // Limit to 1 year for performance
+                    await journalLog.forceReloadMedicationLogs(currentDate);
+                    await journalLog.saveMedicationLogs(currentDate);
+                    currentDate = currentDate.add(const Duration(days: 1));
+                    daysLoaded++;
+                  }
+                  
+                  devPrint("Reloaded $daysLoaded days in treatment range");
 
                   // Get the currently selected date from the provider
                   final selectedDate = ref.read(selectedDateProvider);
-
-                  // If the selected date is different from today, reload that data too
-                  if (selectedDate.day != today.day || 
-                      selectedDate.month != today.month || 
-                      selectedDate.year != today.year) {
-                    devPrint("Also reloading data for selected date: ${selectedDate.toString()}");
-                    await journalLog.forceReloadMedicationLogs(selectedDate);
-                    await journalLog.saveMedicationLogs(selectedDate);
-                  }
-
-                  // Save the updated medication logs to ensure they're persisted
-                  await journalLog.saveMedicationLogs(today);
 
                   devPrint("All medication caches cleared!");
 
@@ -333,6 +528,31 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   devPrint("All providers invalidated for complete UI refresh");
                 } catch (e) {
                   devPrint("Error during complete refresh: $e");
+                }
+
+                // CRITICAL FIX: Reschedule notifications after editing treatment
+                try {
+                  final notificationService = MedicationNotificationService();
+                  await notificationService.initialize();
+                  
+                  // Clear notification tracking before rescheduling
+                  notificationService.clearAllNotificationTracking();
+                  devPrint('🧹 Cleared notification cache after treatment edit');
+                  
+                  // Get today's medications and reschedule notifications
+                  final journalLog = ref.read(pillIntakeProvider.notifier).journalLog;
+                  final now = DateTime.now();
+                  final today = DateTime(now.year, now.month, now.day);
+                  final todayMeds = await journalLog.getMedicationsForTheDay(today);
+                  
+                  await notificationService.showUntakenMedicationNotifications(
+                    todayMeds,
+                    forceReschedule: true,
+                    showImmediateNotifications: false, // Don't show immediate notifications when just rescheduling
+                  );
+                  devPrint('📅 Rescheduled notifications after treatment edit');
+                } catch (e) {
+                  devPrint('❌ Failed to reschedule notifications after edit: $e');
                 }
 
                 // Show success message and pop
@@ -361,60 +581,318 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     );
   }
 
+  Widget _buildDeleteOption(
+    BuildContext context,
+    String title,
+    String description,
+    String option,
+  ) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(option),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTokens.bgMuted,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: AppTokens.textStyleMedium.copyWith(
+                color: AppTokens.stateError,
+              ),
+            ),
+            Text(
+              description,
+              style: AppTokens.textStyleSmall.copyWith(
+                color: AppTokens.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDeleteButton() {
     return SizedBox(
       width: double.infinity,
       child: Button.destructive(
         onPressed: () async {
-          // Show confirmation dialog
-          final bool? shouldDelete = await showDialog<bool>(
+          // Show confirmation bottom modal
+          final String? deleteOption = await showModalBottomSheet<String>(
             context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
             builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Delete Treatment'),
-                content: Text(
-                  'Are you sure you want to delete "${widget.treatment.medicine.name}"? This action cannot be undone.',
+              return Container(
+                decoration: const BoxDecoration(
+                  color: AppTokens.bgPrimary,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.red,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Handle bar
+                        Center(
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: AppTokens.borderLight,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        // Title
+                        Text(
+                          'Delete Treatment',
+                          style: AppTokens.textStyleXLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        // Message
+                        Text(
+                          'Deleting a treatment is a permanent action and cannot be undone.',
+                          style: AppTokens.textStyleMedium.copyWith(
+                            color: AppTokens.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Delete options
+                        Column(
+                          children: [
+                            _buildDeleteOption(
+                              context,
+                              'Just this occurrence',
+                              'Remove "${widget.treatment.medicine.name}" only for this date',
+                              'just_today',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDeleteOption(
+                              context,
+                              'From this date onwards',
+                              'Stop "${widget.treatment.medicine.name}" starting from this date',
+                              'from_today',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDeleteOption(
+                              context,
+                              'All occurrences',
+                              'Permanently delete "${widget.treatment.medicine.name}"',
+                              'all',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        // Cancel button
+                        SizedBox(
+                          width: double.infinity,
+                          child: Button.secondary(
+                            onPressed: () => Navigator.of(context).pop(),
+                            text: 'Cancel',
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            borderWidth: 0,
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Text('Delete'),
                   ),
-                ],
+                ),
               );
             },
           );
 
-          if (shouldDelete == true) {
+          if (deleteOption != null && deleteOption.isNotEmpty) {
             try {
-              // Delete treatment from database
-              await treatmentManager.deleteTreatment(widget.treatment);
-
-              // Clear medication data caches to ensure refresh
-              if (mounted) {
-                // Refresh journal data
-                ref.invalidate(pillIntakeProvider);
+              final journalLog = ref.read(pillIntakeProvider.notifier).journalLog;
+              final selectedDate = ref.read(selectedDateProvider);
+              
+              if (deleteOption == 'just_today') {
+                // Remove the log entry for this treatment on the selected date
+                final existingLogs = await HiveService.getMedicationLogsForDate(selectedDate);
+                if (existingLogs != null && existingLogs.isNotEmpty) {
+                  final updatedLogs = existingLogs.where((log) {
+                    final treatmentId = log['treatment_id']?.toString() ?? '';
+                    return treatmentId != widget.treatment.id;
+                  }).toList();
+                  
+                  await HiveService.saveMedicationLogsForDate(selectedDate, updatedLogs);
+                }
                 
-                // Show success message and pop
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Treatment deleted successfully')),
+                journalLog.clearAllCachedMedicationLogs();
+                await journalLog.forceReloadMedicationLogs(selectedDate);
+                await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('This occurrence deleted')),
+                  );
+                  Navigator.of(context).pop(); // Close edit screen
+                  Navigator.of(context).pop(); // Close treatment overview modal
+                }
+              } else if (deleteOption == 'from_today') {
+                // End the treatment early (set endDate to day before selected date)
+                // CRITICAL FIX: Remove medication log entries from selected date onwards
+                final treatmentEndDate = widget.treatment.treatmentPlan.endDate.normalize();
+                final treatmentId = widget.treatment.id;
+                final cutoffDate = selectedDate.normalize(); // From this date onwards
+                
+                devPrint("Removing medication logs for treatment ${widget.treatment.medicine.name} (ID: $treatmentId) from $cutoffDate to $treatmentEndDate");
+                
+                // Iterate through all dates from selected date to original end date
+                DateTime currentDate = cutoffDate;
+                int datesProcessed = 0;
+                int logsRemoved = 0;
+                
+                while (!currentDate.isAfter(treatmentEndDate) && datesProcessed < 365 * 2) { // Limit to 2 years for safety
+                  try {
+                    final existingLogs = await HiveService.getMedicationLogsForDate(currentDate);
+                    if (existingLogs != null) {
+                      // Filter out logs for this treatment
+                      final updatedLogs = existingLogs.where((log) {
+                        final logTreatmentId = log['treatment_id']?.toString() ?? '';
+                        return logTreatmentId != treatmentId;
+                      }).toList();
+                      
+                      // Always save the updated logs, even if empty (to ensure deletion is persisted)
+                      if (updatedLogs.length < existingLogs.length) {
+                        logsRemoved += (existingLogs.length - updatedLogs.length);
+                        await HiveService.saveMedicationLogsForDate(currentDate, updatedLogs);
+                      }
+                    }
+                  } catch (e) {
+                    devPrint("Error processing logs for date $currentDate: $e");
+                  }
+                  
+                  currentDate = currentDate.add(const Duration(days: 1));
+                  datesProcessed++;
+                }
+                
+                devPrint("Removed $logsRemoved medication log entries across $datesProcessed dates");
+                
+                // Now update the treatment to end before the selected date
+                final updatedTreatment = Treatment(
+                  id: widget.treatment.id,
+                  medicine: widget.treatment.medicine,
+                  treatmentPlan: TreatmentPlan(
+                    startDate: widget.treatment.treatmentPlan.startDate,
+                    endDate: selectedDate.subtract(const Duration(days: 1)).normalize(),
+                    timeOfDay: widget.treatment.treatmentPlan.timeOfDay,
+                    doseTimes: widget.treatment.treatmentPlan.doseTimes,
+                    doseNamesMap: widget.treatment.treatmentPlan.doseNamesMap,
+                    mealOption: widget.treatment.treatmentPlan.mealOption,
+                    instructions: widget.treatment.treatmentPlan.instructions,
+                    frequency: widget.treatment.treatmentPlan.frequency,
+                    selectedDays: widget.treatment.treatmentPlan.selectedDays,
+                  ),
+                  notes: widget.treatment.notes,
                 );
+                await treatmentManager.updateTreatment(widget.treatment, updatedTreatment);
+                
+                // CRITICAL: Reload treatments to ensure the updated end date is in memory
+                await treatmentManager.loadTreatments();
+                
+                // Clear all caches
+                journalLog.clearAllCachedMedicationLogs();
+                
+                // Force reload ALL affected dates (from selected date to original end date)
+                // to ensure they're refreshed with the updated treatment data
+                DateTime reloadDate = cutoffDate;
+                int reloadCount = 0;
+                while (!reloadDate.isAfter(treatmentEndDate) && reloadCount < 365 * 2) {
+                  await journalLog.forceReloadMedicationLogs(reloadDate);
+                  await journalLog.saveMedicationLogs(reloadDate);
+                  reloadDate = reloadDate.add(const Duration(days: 1));
+                  reloadCount++;
+                }
+                
+                devPrint("Reloaded $reloadCount dates after treatment update");
+                
+                // Also reload the selected date for UI refresh
+                await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Treatment stopped from selected date')),
+                  );
+                  Navigator.of(context).pop(); // Close edit screen
+                  Navigator.of(context).pop(); // Close treatment overview modal
+                }
+              } else if (deleteOption == 'all') {
+                // Delete treatment completely
+                // CRITICAL FIX: Remove medication log entries for this treatment across ALL dates
+                // before deleting the treatment itself
+                final treatmentStartDate = widget.treatment.treatmentPlan.startDate.normalize();
+                final treatmentEndDate = widget.treatment.treatmentPlan.endDate.normalize();
+                final treatmentId = widget.treatment.id;
+                
+                devPrint("Deleting all medication logs for treatment ${widget.treatment.medicine.name} (ID: $treatmentId) from $treatmentStartDate to $treatmentEndDate");
+                
+                // Iterate through all dates in the treatment's date range
+                DateTime currentDate = treatmentStartDate;
+                int datesProcessed = 0;
+                int logsRemoved = 0;
+                
+                while (!currentDate.isAfter(treatmentEndDate) && datesProcessed < 365 * 2) { // Limit to 2 years for safety
+                  try {
+                    final existingLogs = await HiveService.getMedicationLogsForDate(currentDate);
+                    if (existingLogs != null && existingLogs.isNotEmpty) {
+                      // Filter out logs for this treatment
+                      final updatedLogs = existingLogs.where((log) {
+                        final logTreatmentId = log['treatment_id']?.toString() ?? '';
+                        return logTreatmentId != treatmentId;
+                      }).toList();
+                      
+                      // Only save if we actually removed something
+                      if (updatedLogs.length < existingLogs.length) {
+                        logsRemoved += (existingLogs.length - updatedLogs.length);
+                        await HiveService.saveMedicationLogsForDate(currentDate, updatedLogs);
+                      }
+                    }
+                  } catch (e) {
+                    devPrint("Error processing logs for date $currentDate: $e");
+                  }
+                  
+                  currentDate = currentDate.add(const Duration(days: 1));
+                  datesProcessed++;
+                }
+                
+                devPrint("Removed $logsRemoved medication log entries across $datesProcessed dates");
+                
+                // Now delete the treatment itself
+                await treatmentManager.deleteTreatment(widget.treatment);
 
-                // Return to previous screen
-                Navigator.of(context).pop(true);
+                // Clear all caches and reload
+                journalLog.clearAllCachedMedicationLogs();
+                await journalLog.forceReloadMedicationLogs(selectedDate);
+                await ref.read(pillIntakeProvider.notifier).forceReloadMedicationData(selectedDate);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Treatment deleted successfully')),
+                  );
+                  Navigator.of(context).pop(); // Close edit screen
+                  Navigator.of(context).pop(); // Close treatment overview modal
+                }
               }
             } catch (e) {
-              // Show error message
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error deleting treatment: $e')),
+                  SnackBar(content: Text('Error: $e')),
                 );
               }
             }
@@ -450,6 +928,483 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
       return false;
     }
     return true;
+  }
+
+  Widget _buildScheduleSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FormFieldLabel(text: 'Schedule'),
+        
+        // Dose list (sorted chronologically)
+        ...() {
+          final sortedEntries = doseTimes.entries.toList()
+            ..sort((a, b) => _parseTime(a.value).compareTo(_parseTime(b.value)));
+          return sortedEntries.map((entry) => _buildDoseRow(entry.key, entry.value));
+        }(),
+        
+        // Add dose button
+        Button.secondary(
+          onPressed: () {
+            setState(() {
+              String newDose = 'Dose ${doseTimes.length + 1}';
+              doseTimes[newDose] = '10:00';
+              doseControllers[newDose] = TextEditingController(text: newDose);
+            });
+          },
+          text: 'add a dose',
+          backgroundColor: AppColors.pink100,
+          textColor: AppTokens.textPrimary,
+          size: ButtonSize.small,
+          borderWidth: 0,
+          leadingIcon: HugeIcon(
+            icon: HugeIcons.strokeRoundedAdd01,
+            color: AppTokens.textPrimary,
+            size: 16,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDoseRow(String doseName, String time) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: CustomTextField(
+                  controller: doseControllers[doseName]!,
+                  hintText: 'Dose name',
+                  onChanged: () {
+                    // Update the dose name in the maps
+                    String newName = doseControllers[doseName]!.text;
+                    if (newName.isNotEmpty && newName != doseName) {
+                      setState(() {
+                        // Update doseTimes with new name
+                        String time = doseTimes[doseName]!;
+                        doseTimes.remove(doseName);
+                        doseTimes[newName] = time;
+                        
+                        // Update controllers map
+                        TextEditingController controller = doseControllers[doseName]!;
+                        doseControllers.remove(doseName);
+                        doseControllers[newName] = controller;
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Time display/button
+                    GestureDetector(
+                      onTap: () async {
+                        // Parse current time safely
+                        List<String> timeParts = time.split(':');
+                        if (timeParts.length == 2) {
+                          int? currentHour = int.tryParse(timeParts[0]);
+                          int? currentMinute = int.tryParse(timeParts[1]);
+                          
+                          if (currentHour != null && currentMinute != null) {
+                            await showCupertinoModalPopup(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return Container(
+                                  height: 300,
+                                  color: Colors.white,
+                                  child: CupertinoTheme(
+                                    data: CupertinoThemeData(
+                                      textTheme: CupertinoTextThemeData(
+                                        dateTimePickerTextStyle: AppTokens.textStyleLarge,
+                                      ),
+                                    ),
+                                    child: CupertinoDatePicker(
+                                      mode: CupertinoDatePickerMode.time,
+                                      use24hFormat: true,
+                                      minuteInterval: 5,
+                                      initialDateTime: createTimeOfDay(currentHour, currentMinute),
+                                      onDateTimeChanged: (DateTime newDateTime) {
+                                        setState(() {
+                                          final newTimeStr = '${newDateTime.hour.toString().padLeft(2, '0')}:${newDateTime.minute.toString().padLeft(2, '0')}';
+                                          doseTimes[doseName] = newTimeStr;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                            // Ensure keyboard doesn't appear after picker closes
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              FocusScope.of(context).unfocus();
+                            });
+                          }
+                        }
+                      },
+                      child: Container(
+                        height: 56,
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              time,
+                              style: AppTokens.textStyleMedium,
+                            ),
+                            const Spacer(),
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedArrowDown01,
+                              color: AppTokens.iconMuted,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Delete button (only show if there's more than one dose)
+              if (doseTimes.length > 1) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      // Dispose the controller for the deleted dose
+                      doseControllers[doseName]?.dispose();
+                      // Remove only the deleted entry, keeping all other controllers and labels intact
+                      doseControllers.remove(doseName);
+                      doseTimes.remove(doseName);
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTokens.stateError.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: AppTokens.stateError,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDurationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FormFieldLabel(text: 'Days taken'),
+        Row(
+          children: _buildDayButtons(),
+        ),
+        const SizedBox(height: 20),
+        FormFieldLabel(text: 'Start'),
+        GestureDetector(
+          onTap: () async {
+            await showCupertinoModalPopup(
+              context: context,
+              builder: (BuildContext context) {
+                return Container(
+                  height: 200,
+                  color: Colors.white,
+                  child: CupertinoPicker(
+                    itemExtent: 50,
+                    onSelectedItemChanged: (int index) {
+                      setState(() {
+                        String selectedValue = ['today', 'tomorrow', 'next Monday', 'Select specific date'][index];
+                        selectedStartOption = selectedValue;
+                        
+                        if (selectedValue == 'today') {
+                          startDate = DateTime.now().normalize();
+                        } else if (selectedValue == 'tomorrow') {
+                          startDate = DateTime.now().add(const Duration(days: 1)).normalize();
+                        } else if (selectedValue == 'next Monday') {
+                          // Calculate next Monday
+                          DateTime now = DateTime.now();
+                          int daysUntilMonday = (8 - now.weekday) % 7;
+                          if (daysUntilMonday == 0) daysUntilMonday = 7;
+                          startDate = now.add(Duration(days: daysUntilMonday)).normalize();
+                        }
+                        // For 'Select specific date', we'll handle it separately
+                      });
+                    },
+                    children: [
+                      'today',
+                      'tomorrow',
+                      'next Monday',
+                      'select specific date',
+                    ].map((String value) {
+                      return Center(
+                        child: Text(
+                          value,
+                          style: AppTokens.textStyleLarge,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            );
+            
+            // If "Select specific date" was selected, show date picker
+            if (selectedStartOption == 'Select specific date' && mounted) {
+              await showCupertinoModalPopup(
+                context: context,
+                builder: (BuildContext context) {
+                  return Container(
+                    height: 300,
+                    color: Colors.white,
+                    child: CupertinoTheme(
+                      data: CupertinoThemeData(
+                        textTheme: CupertinoTextThemeData(
+                          dateTimePickerTextStyle: AppTokens.textStyleLarge,
+                        ),
+                      ),
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.date,
+                        initialDateTime: startDate,
+                        dateOrder: DatePickerDateOrder.dmy,
+                        onDateTimeChanged: (DateTime newDateTime) {
+                          setState(() {
+                            startDate = newDateTime.normalize();
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
+            
+            // Ensure keyboard doesn't appear after picker closes
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              FocusScope.of(context).unfocus();
+            });
+          },
+          child: Container(
+            width: double.infinity,
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  selectedStartOption == 'Select specific date' 
+                      ? _formatDate(startDate)
+                      : selectedStartOption,
+                  style: AppTokens.textStyleMedium,
+                ),
+                const Spacer(),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowDown01,
+                  color: AppTokens.iconMuted,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        FormFieldLabel(text: 'Duration'),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: IgnorePointer(
+                ignoring: isUnlimitedDuration,
+                child: Opacity(
+                  opacity: isUnlimitedDuration ? 0.5 : 1.0,
+                  child: CustomTextField(
+                    controller: durationController,
+                    hintText: 'Duration',
+                    keyboardType: TextInputType.number,
+                    isNumberField: true,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 1,
+              child: Opacity(
+                opacity: isUnlimitedDuration ? 0.5 : 1.0,
+                child: GestureDetector(
+                  onTap: isUnlimitedDuration ? null : () async {
+                    String pickedUnit = selectedDurationUnit;
+                    await showCupertinoModalPopup(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return StatefulBuilder(
+                          builder: (context, setModalState) {
+                            return Container(
+                              height: 200,
+                              color: Colors.white,
+                              child: CupertinoPicker(
+                                itemExtent: 50,
+                                scrollController: FixedExtentScrollController(
+                                  initialItem: ['days', 'weeks', 'months'].indexOf(selectedDurationUnit),
+                                ),
+                                onSelectedItemChanged: (int index) {
+                                  pickedUnit = ['days', 'weeks', 'months'][index];
+                                },
+                                children: [
+                                  'days',
+                                  'weeks',
+                                  'months',
+                                ].map((String value) {
+                                  return Center(
+                                    child: Text(
+                                      value,
+                                      style: AppTokens.textStyleLarge,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                    setState(() {
+                      selectedDurationUnit = pickedUnit;
+                    });
+                    // Ensure keyboard doesn't appear after picker closes
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      FocusScope.of(context).unfocus();
+                    });
+                  },
+                  child: Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          selectedDurationUnit,
+                          style: AppTokens.textStyleMedium,
+                        ),
+                        const Spacer(),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedArrowDown01,
+                          color: AppTokens.iconMuted,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Theme(
+          data: Theme.of(context).copyWith(
+            checkboxTheme: CheckboxThemeData(
+              fillColor: WidgetStateProperty.all(AppColors.pink100),
+              checkColor: WidgetStateProperty.all(Colors.white),
+            ),
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: AppColors.pink100,
+            ),
+          ),
+          child: HuxCheckbox(
+            value: isUnlimitedDuration,
+            onChanged: (bool? newValue) {
+              setState(() {
+                isUnlimitedDuration = newValue ?? false;
+                if (isUnlimitedDuration) {
+                  // Unfocus any text fields when enabling unlimited duration
+                  FocusScope.of(context).unfocus();
+                }
+              });
+            },
+            label: 'Ongoing treatment',
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildDayButtons() {
+    final List<String> days = ['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'];
+    return List.generate(7, (index) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              selectedDays[index] = !selectedDays[index];
+            });
+          },
+          child: Container(
+            margin: EdgeInsets.only(
+              left: index == 0 ? 0 : 4,
+              right: index == 6 ? 0 : 4,
+            ),
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: selectedDays[index] ? AppColors.pink100 : AppTokens.bgMuted,
+            ),
+            child: Center(
+              child: Text(
+                days[index],
+                style: TextStyle(
+                  color: selectedDays[index] ? AppTokens.textPrimary : AppTokens.textSecondary,
+                  fontWeight: AppTokens.fontWeightBold,
+                  fontFamily: 'Outfit',
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  // Helper function to format date as DD/MM/YYYY
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  // Helper method to parse time string to minutes for comparison
+  int _parseTime(String timeString) {
+    List<String> parts = timeString.split(':');
+    if (parts.length == 2) {
+      int? hours = int.tryParse(parts[0]);
+      int? minutes = int.tryParse(parts[1]);
+      if (hours != null && minutes != null) {
+        return hours * 60 + minutes;
+      }
+    }
+    return 0; // Default to 0 if parsing fails
   }
 
   FutureBuilder<SvgPicture> _futureBuildSvg(String text) {

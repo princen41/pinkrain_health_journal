@@ -86,5 +86,8 @@ W*.md
 .*rules
 *CLEANUP.md
 
+# Testing and development documentation (local only)
+NOTIFICATION_TESTING_GUIDE.md
+
 # iOS developer-specific settings
 ios/Flutter/DeveloperSettings.xcconfig

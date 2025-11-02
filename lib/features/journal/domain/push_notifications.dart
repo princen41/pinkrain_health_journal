@@ -1,27 +1,42 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/util/helpers.dart';
 import '../../../features/treatment/services/medication_action_service.dart';
+import 'notification_response_handler.dart';
 
-class NotificationService {
+class NotificationService implements NotificationScheduler {
   static final NotificationService _instance = NotificationService._internal();
 
-  factory NotificationService() {
+  factory NotificationService({NotificationResponseHandler? handler}) {
+    // Allow handler injection for testing
+    if (handler != null) {
+      _instance._handler = handler;
+    }
     return _instance;
   }
 
   late FlutterLocalNotificationsPlugin _notificationsPlugin;
+  late NotificationResponseHandler _handler;
 
   NotificationService._internal() {
     _notificationsPlugin = FlutterLocalNotificationsPlugin();
+    // Initialize handler with self as the scheduler (for production use)
+    _handler = NotificationResponseHandler(
+      notificationScheduler: this,
+    );
   }
+  
+  /// Exposes the notification response handler for testing purposes
+  /// Tests can inject a custom handler or access the real one
+  @visibleForTesting
+  NotificationResponseHandler get handler => _handler;
 
   // We'll use this key in getSelectedSoundPath method implementation when SharedPreferences is properly integrated
   static const String selectedSoundKey = 'selected_notification_sound';
@@ -90,6 +105,18 @@ class NotificationService {
       },
     );
     
+    // Ensure iOS shows notifications while app is in foreground (banners/sound)
+    final iosImpl = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    if (iosImpl != null) {
+      await iosImpl.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      devPrint('iOS foreground presentation options requested (alert/badge/sound)');
+    }
+
     // For Android 13+, we need to explicitly check notification permissions
     // but for older versions, we don't need to request permissions
     // so we'll just log the initialization instead
@@ -114,138 +141,21 @@ class NotificationService {
 
   /// Handle notification responses, including action buttons
   void _handleNotificationResponse(NotificationResponse response) {
-    devPrint('Notification response received: ${response.payload}');
-    devPrint('Action ID: ${response.actionId ?? 'NO_ACTION_ID'}');
-    
-    // Check if we have a payload
-    if (response.payload != null && response.payload!.isNotEmpty) {
-      try {
-        // Parse the payload JSON
-        final Map<String, dynamic> payload = json.decode(response.payload!);
-        
-        devPrint('Notification action ID: ${response.actionId}');
-        devPrint('Notification payload decoded: $payload');
-        
-        // Process different action types
-        switch (response.actionId) {
-          case 'SNOOZE_ACTION':
-            devPrint(' SNOOZE button pressed - processing...');
-            _handleSnoozeAction(payload);
-            break;
-          case 'MARK_TAKEN_ACTION':
-            devPrint(' MARK AS TAKEN button pressed - processing...');
-            _handleMarkTakenAction(payload);
-            break;
-          default:
-            // Handle regular notification tap (no specific action)
-            devPrint('Regular notification tapped (no action button), payload: $payload');
-        }
-      } catch (e) {
-        devPrint(' Error handling notification response: $e');
-      }
-    } else {
-      devPrint(' Empty payload in notification response');
+    // Delegate to handler but swallow errors in production
+    try {
+      _handler.handleNotificationResponse(response);
+    } catch (e) {
+      devPrint('❌ Error handling notification response: $e');
     }
   }
-  
-  /// Handle the snooze action
-  Future<void> _handleSnoozeAction(Map<String, dynamic> payload) async {
-    // Get the notification ID and medication ID
-    final String medicationId = payload['medicationId'] ?? '';
-    
-    if (medicationId.isEmpty) {
-      devPrint('❌ Cannot snooze: No medication ID provided in payload');
-      return;
-    }
-    
-    try {
-      // Get medication data from payload
-      final String notificationId = payload['notificationId'] ?? '';
-      final String medicationName = payload['medicationName'] ?? 'medication';
-      
-      devPrint('🔔 Processing snooze for medication: $medicationName (ID: $medicationId)');
-      
-      // Use the MedicationActionService to snooze this medication
-      final success = await MedicationActionService().snoozeMedication(
-        medicationId,
-        snoozeMinutes: 5, // Snooze for 5 minutes
-        metadata: payload, // Include all original payload data
-      );
-      
-      if (success) {
-        // Schedule a new notification for 5 minutes from now
-        final snoozeTime = DateTime.now().add(const Duration(minutes: 5));
-        
-        // Create a notification title and body with medication information
-        final String title = 'Snoozed: Take your $medicationName';
-        final String body = 'This is a snoozed reminder for your medication';
-        
-        // Add information to payload to indicate this is a snoozed notification
-        final Map<String, dynamic> updatedPayload = Map<String, dynamic>.from(payload);
-        updatedPayload['isSnoozed'] = true;
-        updatedPayload['originalNotificationId'] = notificationId;
-        updatedPayload['snoozeTime'] = snoozeTime.toIso8601String();
-        
-        // Use a consistent ID for the snoozed notification based on the original
-        final int snoozeNotificationId = notificationId.isNotEmpty 
-            ? int.parse(notificationId) + 1000 // Derived from original ID
-            : DateTime.now().millisecondsSinceEpoch % 100000000; // Fallback
-        
-        // Schedule the snoozed notification
-        await showNotification(
-          snoozeNotificationId,
-          title,
-          body,
-          payload: updatedPayload,
-          includeSnoozeAction: true, // Allow re-snoozing
-        );
-        
-        devPrint('✅ Medication $medicationId snoozed until $snoozeTime');
-      } else {
-        devPrint('❌ Failed to snooze medication $medicationId');
-      }
-    } catch (e) {
-      devPrint('❌ Error handling snooze action: $e');
-    }
-  }
-  
-  /// Handle the mark as taken action
-  Future<void> _handleMarkTakenAction(Map<String, dynamic> payload) async {
-    // Get the medication ID
-    final String medicationId = payload['medicationId'] ?? '';
-    
-    if (medicationId.isEmpty) {
-      devPrint('❌ Cannot mark medication as taken: No medication ID provided');
-      return;
-    }
-    
-    try {
-      // Get medication name if available
-      final String medicationName = payload['medicationName'] ?? 'medication';
-      
-      devPrint('🔔 Processing mark as taken for: $medicationName (ID: $medicationId)');
-      
-      // Use the MedicationActionService to mark medication as taken
-      final success = await MedicationActionService().markMedicationAsTaken(
-        medicationId, 
-        metadata: payload,
-      );
-      
-      if (success) {
-        // Cancel the notification to remove it from the notification drawer
-        final String notificationId = payload['notificationId'] ?? '';
-        if (notificationId.isNotEmpty) {
-          await _notificationsPlugin.cancel(int.parse(notificationId));
-          devPrint('Cancelled notification ID: $notificationId');
-        }
-        
-        devPrint('✅ Medication $medicationId marked as taken successfully');
-      } else {
-        devPrint('❌ Failed to mark medication $medicationId as taken');
-      }
-    } catch (e) {
-      devPrint('❌ Error marking medication as taken: $e');
-    }
+
+  /// Public testable method for handling notification responses
+  /// Delegates to the handler's method - kept for backward compatibility with existing tests
+  /// @visibleForTesting
+  @visibleForTesting
+  Future<void> handleNotificationResponseForTesting(NotificationResponse response) async {
+    // Simply delegate to the handler
+    await _handler.handleNotificationResponse(response);
   }
 
   Future<void> _createNotificationChannel() async {
@@ -336,6 +246,35 @@ class NotificationService {
 
     devPrint('Showed immediate notification');
   }
+
+  // ============================================================================
+  // NotificationScheduler interface implementation
+  // ============================================================================
+  
+  /// Schedules a notification (implements NotificationScheduler interface)
+  /// This is used by the NotificationResponseHandler for snooze functionality
+  @override
+  Future<void> scheduleNotification(
+    int id,
+    String title,
+    String body, {
+    Map<String, dynamic>? payload,
+    bool includeSnoozeAction = true,
+  }) async {
+    // Delegate to showNotification
+    await showNotification(id, title, body, payload: payload, includeSnoozeAction: includeSnoozeAction);
+  }
+  
+  /// Cancels a notification (implements NotificationScheduler interface)
+  /// This is used by the NotificationResponseHandler for mark-as-taken functionality
+  @override
+  Future<void> cancelNotification(int id) async {
+    await _notificationsPlugin.cancel(id);
+  }
+  
+  // ============================================================================
+  // Public notification methods
+  // ============================================================================
 
   /// Show a notification with optional payload and snooze action
   Future<void> showNotification(
@@ -479,7 +418,6 @@ class NotificationService {
       zonedTime,
       platformChannelSpecifics,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
       payload: payloadStr,
     );
 
@@ -538,15 +476,29 @@ class NotificationService {
     await _notificationsPlugin.cancel(id);
   }
 
+  // Cancel ALL scheduled notifications
+  Future<void> cancelAllNotifications() async {
+    await _notificationsPlugin.cancelAll();
+    devPrint('🧹 Cancelled ALL scheduled notifications from the system');
+  }
+
   // Check if notifications are enabled
   Future<bool> areNotificationsEnabled() async {
-    final androidImplementation =
-        _notificationsPlugin.resolvePlatformSpecificImplementation<
+    // Android: use plugin-provided check
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
-
     if (androidImplementation != null) {
       return await androidImplementation.areNotificationsEnabled() ?? false;
     }
+
+    // iOS: rely on permission_handler status (robust and simple)
+    if (Platform.isIOS) {
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    }
+
+    // Other platforms: default to false
     return false;
   }
 }

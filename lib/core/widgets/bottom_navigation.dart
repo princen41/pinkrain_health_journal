@@ -1,10 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../../../core/theme/tokens.dart';
-import '../theme/icons.dart';
 
 
+
+dynamic _getIconForRoute(String route) {
+  switch (route) {
+    case 'journal':
+      return HugeIcons.strokeRoundedBookOpen02;
+    case 'pillbox':
+      return HugeIcons.strokeRoundedTokenSquare;
+    case 'mindfulness':
+      return HugeIcons.strokeRoundedFlower;
+    case 'wellness':
+      return HugeIcons.strokeRoundedYoga03;
+    default:
+      // Log warning about unknown route
+      debugPrint('⚠️ Unknown route in bottom navigation: "$route". Using fallback bookmark icon.');
+      
+      // In debug/dev mode, throw to surface the routing issue
+      if (kDebugMode) {
+        throw AssertionError(
+          'Unknown route "$route" passed to _getIconForRoute. '
+          'This indicates a routing configuration issue. '
+          'Valid routes are: journal, pillbox, mindfulness, wellness.'
+        );
+      }
+      
+      // Return safe fallback icon for release builds
+      return HugeIcons.strokeRoundedBookmark02;
+  }
+}
 
 Widget buildBottomNavigationBar({required BuildContext context, required String currentRoute}) {
   return BottomAppBar(
@@ -31,6 +60,7 @@ GestureDetector buildNavItem(BuildContext context, String label, String route, b
     },
     child: Column(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
         decoration: BoxDecoration(
@@ -39,10 +69,15 @@ GestureDetector buildNavItem(BuildContext context, String label, String route, b
           color: isSelected ? AppTokens.bgCard : Colors.transparent,
         ),
         padding: EdgeInsets.all(8),
-        child: appVectorImage(fileName: route)
+        child: HugeIcon(
+          icon: _getIconForRoute(route),
+          size: 19,
+          strokeWidth: 1,
+          color: isSelected ? AppTokens.textPrimary : AppTokens.textSecondary,
+        )
         ),
-
-        Text(label),
+        SizedBox(height: 2),
+        Text(label, style: TextStyle(fontSize: 12)),
       ],
     ),
   );

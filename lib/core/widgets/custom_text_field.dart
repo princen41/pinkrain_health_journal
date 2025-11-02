@@ -2,6 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 
+const _kIconConstraints = BoxConstraints(
+  minWidth: 48,
+  minHeight: 48,
+  maxWidth: 48,
+  maxHeight: 48,
+);
+
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
@@ -9,6 +16,9 @@ class CustomTextField extends StatelessWidget {
   final String? errorText;
   final VoidCallback? onChanged;
   final bool isNumberField;
+  final bool autofocus;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
 
   const CustomTextField({
     super.key,
@@ -18,12 +28,16 @@ class CustomTextField extends StatelessWidget {
     this.errorText,
     this.onChanged,
     this.isNumberField = false,
+    this.autofocus = false,
+    this.prefixIcon,
+    this.suffixIcon,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      autofocus: autofocus,
       cursorColor: AppTokens.cursor,
       keyboardType: isNumberField 
           ? (Platform.isIOS 
@@ -40,12 +54,23 @@ class CustomTextField extends StatelessWidget {
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.all(15),
+        prefixIcon: prefixIcon,
+        prefixIconConstraints: prefixIcon != null
+            ? _kIconConstraints
+            : null,
+        suffixIcon: suffixIcon,
+        suffixIconConstraints: suffixIcon != null
+            ? _kIconConstraints
+            : null,
         errorText: errorText,
-        errorStyle: const TextStyle(
+        errorMaxLines: 3,
+        errorStyle: AppTokens.textStyleSmall.copyWith(
           color: AppTokens.stateError,
           fontSize: 12,
         ),
+        labelStyle: const TextStyle(color: AppTokens.textPrimary),
       ),
+      style: AppTokens.textStyleMedium,
       onChanged: onChanged != null ? (_) => onChanged!() : null,
     );
   }

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:pinkrain/core/models/medicine_model.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
+import 'package:pinkrain/features/treatment/services/medication_notification_service.dart';
 
 import '../../../core/util/helpers.dart';
 import '../data/treatment.dart';
@@ -27,15 +28,12 @@ class Treatment {
     this.notes = '',
   }) : id = id ?? generateUniqueId();
 
-  /// Format the treatment's scheduled time in a readable format (e.g., "10:00 AM")
+  /// Format the treatment's scheduled time in 24h format (e.g., "14:30")
   String formattedTimeOfDay() {
     final time = treatmentPlan.timeOfDay;
-    final hour = time.hour;
-    final minute = time.minute;
-    final period = hour >= 12 ? 'PM' : 'AM';
-    final formattedHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
-    final formattedMinute = minute.toString().padLeft(2, '0');
-    return '$formattedHour:$formattedMinute $period';
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   Map<String, dynamic> toJson() {
@@ -55,6 +53,8 @@ class Treatment {
         'startDate': treatmentPlan.startDate.toIso8601String(),
         'endDate': treatmentPlan.endDate.toIso8601String(),
         'timeOfDay': treatmentPlan.timeOfDay.toIso8601String(),
+        'doseTimes': treatmentPlan.doseTimes.map((t) => t.toIso8601String()).toList(),
+        'doseNamesMap': treatmentPlan.doseNamesMap.map((name, time) => MapEntry(name, time.toIso8601String())),
         'mealOption': treatmentPlan.mealOption,
         'instructions': treatmentPlan.instructions,
         'frequency': treatmentPlan.frequency.inDays,
@@ -86,10 +86,32 @@ class Treatment {
         ),
       );
 
+      // Parse doseTimes if available, otherwise use empty list
+      List<DateTime> doseTimes = [];
+      if (treatmentPlanJson.containsKey('doseTimes') && treatmentPlanJson['doseTimes'] != null) {
+        final doseTimesJson = treatmentPlanJson['doseTimes'] as List<dynamic>?;
+        if (doseTimesJson != null) {
+          doseTimes = doseTimesJson.map((t) => DateTime.parse(t as String)).toList();
+        }
+      }
+
+      // Parse doseNamesMap if available, otherwise use empty map
+      Map<String, DateTime> doseNamesMap = {};
+      if (treatmentPlanJson.containsKey('doseNamesMap') && treatmentPlanJson['doseNamesMap'] != null) {
+        final doseNamesMapJson = treatmentPlanJson['doseNamesMap'] as Map<String, dynamic>?;
+        if (doseNamesMapJson != null) {
+          doseNamesMap = doseNamesMapJson.map((name, timeStr) => 
+            MapEntry(name, DateTime.parse(timeStr as String))
+          );
+        }
+      }
+
       final treatmentPlan = TreatmentPlan(
         startDate: DateTime.parse(treatmentPlanJson['startDate'] as String),
         endDate: DateTime.parse(treatmentPlanJson['endDate'] as String),
         timeOfDay: DateTime.parse(treatmentPlanJson['timeOfDay'] as String),
+        doseTimes: doseTimes,
+        doseNamesMap: doseNamesMap,
         mealOption: treatmentPlanJson['mealOption'] as String,
         instructions: treatmentPlanJson['instructions'] as String,
         frequency: Duration(days: treatmentPlanJson['frequency'] as int),
@@ -120,7 +142,7 @@ class Treatment {
       final defaultPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(const Duration(days: 7)),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0),
+        timeOfDay: createTimeOfDay(12, 0),
       );
       
       return Treatment(medicine: defaultMedicine, treatmentPlan: defaultPlan);
@@ -168,7 +190,7 @@ class Treatment {
     final plan = TreatmentPlan(
       startDate: startDate,
       endDate: endDate,
-      timeOfDay: DateTime(2023, 1, 1, 11, 0),
+      timeOfDay: createTimeOfDay(11, 0),
       mealOption: mealOption,
       instructions: instructions,
       frequency: frequency,
@@ -202,7 +224,7 @@ class Treatment {
         endDate: DateTime.now().add(Duration(days: 2)),
         mealOption: 'After dinner',
         instructions: 'Take 1 tablet every night before bed',
-        timeOfDay: DateTime(2023, 1, 1, 11, 0));
+        timeOfDay: createTimeOfDay(11, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -213,7 +235,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 1)),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0));
+        timeOfDay: createTimeOfDay(12, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -224,7 +246,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 3)),
-        timeOfDay: DateTime(2023, 1, 1, 23, 0));
+        timeOfDay: createTimeOfDay(23, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -248,7 +270,7 @@ class Treatment {
         endDate: DateTime.now().add(Duration(days: 2)),
         mealOption: 'After dinner',
         instructions: 'Take 1 tablet every night before bed',
-        timeOfDay: DateTime(2023, 1, 1, 11, 0));
+        timeOfDay: createTimeOfDay(11, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -259,7 +281,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 1)),
-        timeOfDay: DateTime(2023, 1, 1, 12, 0));
+        timeOfDay: createTimeOfDay(12, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -270,7 +292,7 @@ class Treatment {
     treatmentPlan = TreatmentPlan(
         startDate: DateTime.now(),
         endDate: DateTime.now().add(Duration(days: 3)),
-        timeOfDay: DateTime(2023, 1, 1, 23, 0));
+        timeOfDay: createTimeOfDay(23, 0));
     newTreatment = Treatment(medicine: medicine, treatmentPlan: treatmentPlan);
 
     treatments.add(newTreatment);
@@ -296,6 +318,9 @@ class TreatmentManager {
       final storedTreatments = await HiveService.getTreatments();
       _treatments.clear();
       
+      // Deduplicate treatments by ID - keep the first occurrence of each ID
+      final Map<String, Treatment> uniqueTreatments = {};
+      
       for (final treatmentMap in storedTreatments) {
         try {
           // Sanitize the map to ensure it has string keys
@@ -305,25 +330,49 @@ class TreatmentManager {
           final treatment = Treatment.fromJson(sanitizedMap);
           
           // CRITICAL FIX: Generate an ID for any treatment missing one
-          if (treatment.id.isEmpty) {
-            _treatments.add(Treatment(
-              id: generateUniqueId(),
-              medicine: treatment.medicine,
-              treatmentPlan: treatment.treatmentPlan,
-              notes: treatment.notes,
-            ));
+          final finalTreatment = treatment.id.isEmpty
+              ? Treatment(
+                  id: generateUniqueId(),
+                  medicine: treatment.medicine,
+                  treatmentPlan: treatment.treatmentPlan,
+                  notes: treatment.notes,
+                )
+              : treatment;
+          
+          // Deduplicate by ID - if we've seen this ID before, skip it
+          if (finalTreatment.id.isNotEmpty) {
+            if (!uniqueTreatments.containsKey(finalTreatment.id)) {
+              uniqueTreatments[finalTreatment.id] = finalTreatment;
+            } else {
+              devPrint("Skipping duplicate treatment with ID: ${finalTreatment.id}, name: ${finalTreatment.medicine.name}");
+            }
           } else {
-            _treatments.add(treatment);
+            // If still no ID after generation, add it anyway (shouldn't happen)
+            _treatments.add(finalTreatment);
           }
         } catch (e) {
           devPrint('Error parsing treatment: $e');
           // Skip this treatment and continue
         }
       }
+      
+      // Add all unique treatments to the list
+      _treatments.addAll(uniqueTreatments.values);
+      
+      // If we found duplicates, save the deduplicated list back to storage
+      if (uniqueTreatments.length < storedTreatments.length) {
+        devPrint("Found ${storedTreatments.length - uniqueTreatments.length} duplicate treatments, cleaning up storage");
+        await _cleanupDuplicateTreatments();
+      }
     } catch (e) {
       devPrint('Error loading treatments: $e');
       _treatments.clear(); // Reset to empty list on error
     }
+  }
+  
+  /// Clean up duplicate treatments from storage, keeping only one per ID
+  Future<void> _cleanupDuplicateTreatments() async {
+    await HiveService.deduplicateTreatments();
   }
 
   Future<void> saveTreatment(Treatment treatment) async {
@@ -384,6 +433,18 @@ class TreatmentManager {
     final json = _sanitizeMap(treatment.toJson());
     await HiveService.deleteTreatment(json);
     _treatments.removeWhere((t) => t.medicine.name == treatment.medicine.name);
+    
+    // CRITICAL FIX: Cancel all scheduled notifications for this treatment
+    try {
+      if (treatment.id.isNotEmpty) {
+        final notificationService = MedicationNotificationService();
+        await notificationService.cancelNotificationsForTreatment(treatment.id);
+        devPrint('✅ Cancelled notifications for deleted treatment: ${treatment.medicine.name} (ID: ${treatment.id})');
+      }
+    } catch (e) {
+      devPrint('⚠️ Error canceling notifications for deleted treatment: $e');
+      // Continue with deletion even if notification cancellation fails
+    }
   }
 
   /// Deep sanitize a map to ensure all keys are strings

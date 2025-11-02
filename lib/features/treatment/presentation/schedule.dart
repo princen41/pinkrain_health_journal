@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
 
+import '../../../core/theme/colors.dart';
+import '../../../core/theme/tokens.dart';
+import '../../../core/util/helpers.dart';
+import '../../../core/widgets/index.dart';
 import '../domain/treatment_manager.dart';
 
 class ScheduleScreen extends StatefulWidget {
@@ -17,146 +23,517 @@ class ScheduleScreen extends StatefulWidget {
 
 class ScheduleScreenState extends State<ScheduleScreen> {
   Map<String, String> doseTimes = {'Dose 1': '10:00'};
+  Map<String, TextEditingController> doseControllers = {
+    'Dose 1': TextEditingController(text: 'Dose 1')
+  };
   String selectedReminder = 'at time of event';
+
+  // Helper method to parse time string to minutes for comparison
+  int _parseTime(String timeString) {
+    List<String> parts = timeString.split(':');
+    if (parts.length == 2) {
+      int? hours = int.tryParse(parts[0]);
+      int? minutes = int.tryParse(parts[1]);
+      if (hours != null && minutes != null) {
+        return hours * 60 + minutes;
+      }
+    }
+    return 0; // Default to 0 if parsing fails
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize doseTimes from the treatment's existing dose times
+    final existingDoseTimes = widget.treatment.treatmentPlan.getAllDoseTimes();
+    final doseNamesMap = widget.treatment.treatmentPlan.doseNamesMap;
+    
+    if (existingDoseTimes.isNotEmpty) {
+      doseTimes = {};
+      doseControllers = {};
+      
+      // If doseNamesMap exists, use it to restore custom names, otherwise use default names
+      if (doseNamesMap.isNotEmpty) {
+        // Use the saved custom names
+        for (var entry in doseNamesMap.entries) {
+          final doseName = entry.key;
+          final time = entry.value;
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          doseTimes[doseName] = '$hour:$minute';
+          doseControllers[doseName] = TextEditingController(text: doseName);
+        }
+      } else {
+        // Fallback to default names if no custom names were saved
+        for (int i = 0; i < existingDoseTimes.length; i++) {
+          final time = existingDoseTimes[i];
+          final hour = time.hour.toString().padLeft(2, '0');
+          final minute = time.minute.toString().padLeft(2, '0');
+          final doseKey = 'Dose ${i + 1}';
+          doseTimes[doseKey] = '$hour:$minute';
+          doseControllers[doseKey] = TextEditingController(text: doseKey);
+        }
+      }
+    } else {
+      // Fallback to single dose using timeOfDay if no dose times exist
+      doseTimes = {'Dose 1': widget.treatment.formattedTimeOfDay()};
+      doseControllers = {'Dose 1': TextEditingController(text: 'Dose 1')};
+    }
+  }
+
+  @override
+  void dispose() {
+    // Dispose all text controllers
+    for (var controller in doseControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text('Schedule'),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close),
-          onPressed: () => context.pop(),
+    return CupertinoPageScaffold(
+      backgroundColor: AppTokens.bgPrimary,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppTokens.bgPrimary,
+        border: Border(
+          bottom: BorderSide(
+            color: AppTokens.borderLight,
+            width: 0.5,
+          ),
         ),
+        leading: GestureDetector(
+          onTap: () => context.pop(),
+          child: Container(
+            padding: const EdgeInsets.all(0),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowLeft01,
+              color: AppTokens.textPrimary,
+              size: 32,
+            ),
+          ),
+        ),
+        middle: Text(
+          'Schedule',
+          style: AppTokens.textStyleLarge,
+        ),
+        trailing: Container(width: 0), // Balance the back button
       ),
-      body: Container(
-        color: Colors.transparent,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              SizedBox(height: 20),
-              Text(
-                'When do you want to take your medication?',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 20),
-              ListView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: doseTimes.length,
-                itemBuilder: (context, index) {
-                  String doseKey = doseTimes.keys.elementAt(index);
-                  return Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      children: [
-                        Text(doseKey),
-                        Spacer(),
-                        TextButton(
-                          onPressed: () async {
-                            TimeOfDay? time = await showTimePicker(
-                              context: context,
-                              initialTime: TimeOfDay.now(),
-                            );
-                            if (time != null) {
-                              setState(() {
-                                doseTimes[doseKey] = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-                              });
-                            }
-                          },
-                          child: Text(doseTimes[doseKey]!),
-                        ),
+      child: Material(
+        color: AppTokens.bgPrimary,
+        child: GestureDetector(
+          onTap: () {
+            // Dismiss keyboard when tapping outside text fields
+            FocusScope.of(context).unfocus();
+          },
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Progress indicator
+                _buildProgressIndicator(),
+                
+                // Main content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      
+                      // Dose section
+                      _buildDoseSection(),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Reminder section
+                        _buildReminderSection(),
+                        
+                        const SizedBox(height: 60),
                       ],
                     ),
-                  );
-                },
-              ),
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    String newDose = 'Dose ${doseTimes.length + 1}';
-                    doseTimes[newDose] = '10:00';
-                  });
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[200],
-                  foregroundColor: Colors.black,
+                  ),
                 ),
-                child: const Text('Add another dose time'),
+                
+                // Navigation buttons
+                _buildNavigationButtons(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppColors.pink100,
+                borderRadius: BorderRadius.circular(2),
               ),
-              SizedBox(height: 40),
-              Text(
-                'Remind me',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppColors.pink100,
+                borderRadius: BorderRadius.circular(2),
               ),
-              SizedBox(height: 20),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: selectedReminder,
-                  items: [
-                    'at time of event',
-                    '5 minutes before',
-                    '10 minutes before',
-                    '15 minutes before',
-                    '30 minutes before',
-                  ].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
+            ),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppTokens.bgMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDoseSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FormFieldLabel(text: 'Dose'),
+        
+        // Dose list (sorted chronologically)
+        ...() {
+          final sortedEntries = doseTimes.entries.toList()
+            ..sort((a, b) => _parseTime(a.value).compareTo(_parseTime(b.value)));
+          return sortedEntries.map((entry) => _buildDoseRow(entry.key, entry.value));
+        }(),
+        
+        // Add dose button
+        Button.secondary(
+          onPressed: () {
+            setState(() {
+              String newDose = 'Dose ${doseTimes.length + 1}';
+              doseTimes[newDose] = '10:00';
+              doseControllers[newDose] = TextEditingController(text: newDose);
+            });
+          },
+          text: 'add a dose',
+          backgroundColor: AppColors.pink100,
+          textColor: AppTokens.textPrimary,
+          size: ButtonSize.small,
+          borderWidth: 0,
+          leadingIcon: HugeIcon(
+            icon: HugeIcons.strokeRoundedAdd01,
+            color: AppTokens.textPrimary,
+            size: 16,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDoseRow(String doseName, String time) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: CustomTextField(
+                  controller: doseControllers[doseName]!,
+                  hintText: 'Dose name',
+                  onChanged: () {
+                    // Update the dose name in the maps
+                    String newName = doseControllers[doseName]!.text;
+                    if (newName.isNotEmpty && newName != doseName) {
                       setState(() {
-                        selectedReminder = newValue;
+                        // Update doseTimes with new name
+                        String time = doseTimes[doseName]!;
+                        doseTimes.remove(doseName);
+                        doseTimes[newName] = time;
+                        
+                        // Update controllers map
+                        TextEditingController controller = doseControllers[doseName]!;
+                        doseControllers.remove(doseName);
+                        doseControllers[newName] = controller;
                       });
                     }
                   },
                 ),
               ),
-              SizedBox(height: 40),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Parse the first dose time for the treatment plan
-                    String firstDoseTime = doseTimes.values.first;
-                    List<String> timeParts = firstDoseTime.split(':');
-                    widget.treatment.treatmentPlan.timeOfDay = DateTime(
-                      DateTime.now().year,
-                      DateTime.now().month,
-                      DateTime.now().day,
-                      int.parse(timeParts[0]),
-                      int.parse(timeParts[1]),
-                    );
-                    context.push('/duration', extra: widget.treatment);
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Time display/button
+                GestureDetector(
+                  onTap: () async {
+                    // Parse current time safely
+                    List<String> timeParts = time.split(':');
+                    if (timeParts.length == 2) {
+                      int? currentHour = int.tryParse(timeParts[0]);
+                      int? currentMinute = int.tryParse(timeParts[1]);
+                      
+                      if (currentHour != null && currentMinute != null) {
+                        await showCupertinoModalPopup(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return Container(
+                              height: 300,
+                              color: Colors.white,
+                              child: CupertinoTheme(
+                                data: CupertinoThemeData(
+                                  textTheme: CupertinoTextThemeData(
+                                    dateTimePickerTextStyle: AppTokens.textStyleLarge,
+                                  ),
+                                ),
+                                child: CupertinoDatePicker(
+                                  mode: CupertinoDatePickerMode.time,
+                                  use24hFormat: true,
+                                  minuteInterval: 5,
+                                  initialDateTime: createTimeOfDay(currentHour, currentMinute),
+                                  onDateTimeChanged: (DateTime newDateTime) {
+                                    setState(() {
+                                      doseTimes[doseName] = '${newDateTime.hour.toString().padLeft(2, '0')}:${newDateTime.minute.toString().padLeft(2, '0')}';
+                                    });
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                        // Ensure keyboard doesn't appear after picker closes
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          FocusScope.of(context).unfocus();
+                        });
+                      }
+                    }
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, 50),
+                  child: Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          time,
+                          style: AppTokens.textStyleMedium,
+                        ),
+                        const Spacer(),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedArrowDown01,
+                          color: AppTokens.iconMuted,
+                          size: 20,
+                        ),
+                      ],
+                    ),
                   ),
-                  child: const Text('Continue'),
                 ),
-              ),
-              SizedBox(height: 20),
+              ],
+            ),
+          ),
+              // Delete button (only show if there's more than one dose)
+              if (doseTimes.length > 1) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      // Dispose the controller
+                      doseControllers[doseName]?.dispose();
+                      doseControllers.remove(doseName);
+                      doseTimes.remove(doseName);
+                      
+                      // Renumber remaining doses
+                      final newDoseTimes = <String, String>{};
+                      final newDoseControllers = <String, TextEditingController>{};
+                      final sortedKeys = doseTimes.keys.toList()..sort();
+                      for (int i = 0; i < sortedKeys.length; i++) {
+                        String newName = 'Dose ${i + 1}';
+                        newDoseTimes[newName] = doseTimes[sortedKeys[i]]!;
+                        newDoseControllers[newName] = TextEditingController(text: newName);
+                      }
+                      doseTimes = newDoseTimes;
+                      doseControllers = newDoseControllers;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTokens.stateError.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: AppTokens.stateError,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReminderSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FormFieldLabel(text: 'Reminder'),
+        
+        GestureDetector(
+          onTap: () async {
+            await showCupertinoModalPopup(
+              context: context,
+              builder: (BuildContext context) {
+                return Container(
+                  height: 200,
+                  color: Colors.white,
+                  child: CupertinoPicker(
+                    itemExtent: 50,
+                    onSelectedItemChanged: (int index) {
+                      setState(() {
+                        selectedReminder = [
+                          'at time of event',
+                          '5 minutes before',
+                          '10 minutes before',
+                          '15 minutes before',
+                          '30 minutes before',
+                        ][index];
+                      });
+                    },
+                    children: [
+                      'at time of event',
+                      '5 minutes before',
+                      '10 minutes before',
+                      '15 minutes before',
+                      '30 minutes before',
+                    ].map((String value) {
+                      return Center(
+                        child: Text(
+                          value,
+                          style: AppTokens.textStyleLarge,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            );
+            // Ensure keyboard doesn't appear after picker closes
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              FocusScope.of(context).unfocus();
+            });
+          },
+          child: Container(
+            width: double.infinity,
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  selectedReminder,
+                  style: AppTokens.textStyleMedium,
+                ),
+                const Spacer(),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowDown01,
+                  color: AppTokens.iconMuted,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNavigationButtons() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: AppTokens.borderLight,
+            width: 0.5,
           ),
         ),
       ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        child: Row(
+        children: [
+          Expanded(
+            child: Button.secondary(
+              onPressed: () => context.pop(),
+              text: 'Previous',
+              size: ButtonSize.large,
+              borderWidth: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Button.primary(
+              onPressed: () {
+                // Parse ALL dose times for the treatment plan, preserving custom names
+                List<DateTime> allDoseTimes = [];
+                Map<String, DateTime> doseNamesMap = {};
+                for (var entry in doseTimes.entries) {
+                  final doseName = entry.key; // Preserve the custom dose name
+                  final timeStr = entry.value;
+                  List<String> timeParts = timeStr.split(':');
+                  if (timeParts.length == 2) {
+                    int hour = int.tryParse(timeParts[0]) ?? 10;
+                    int minute = int.tryParse(timeParts[1]) ?? 0;
+                    final doseTime = createTimeOfDay(hour, minute);
+                    allDoseTimes.add(doseTime);
+                    // Store the mapping of custom name to time
+                    doseNamesMap[doseName] = doseTime;
+                  }
+                }
+                
+                // Set the first dose time as the primary timeOfDay for backward compatibility
+                if (allDoseTimes.isNotEmpty) {
+                  widget.treatment.treatmentPlan.timeOfDay = allDoseTimes.first;
+                }
+                
+                // Set all dose times in the doseTimes list
+                widget.treatment.treatmentPlan.doseTimes = allDoseTimes;
+                // Set custom dose names map
+                widget.treatment.treatmentPlan.doseNamesMap = doseNamesMap;
+                
+                context.push('/duration', extra: widget.treatment);
+              },
+              text: 'Continue',
+              size: ButtonSize.large,
+            ),
+          ),
+        ],
+      ),
+    ),
     );
   }
 }

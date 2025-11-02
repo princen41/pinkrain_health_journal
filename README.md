@@ -352,10 +352,8 @@ Need help or have questions?
 ## 🔮 Roadmap
 
 - [ ] **Multi-language support**
-- [ ] **Apple Health / Google Fit integration**
-- [ ] **Enhanced AI models**
 - [ ] **Accessibility improvements**
-- [ ] **Desktop support**
+- [ ] **Dark Mode support**
 - [ ] **Advanced analytics**
 
 ---

@@ -13,6 +13,7 @@ import '../../features/treatment/domain/treatment_manager.dart';
 import '../../features/treatment/presentation/duration.dart';
 import '../../features/treatment/presentation/edit_treatment.dart';
 import '../../features/treatment/presentation/new_treatment.dart';
+import '../../features/treatment/presentation/one_time_take.dart';
 import '../../features/treatment/presentation/schedule.dart';
 import '../../features/wellness/presentation/wellness_screen.dart';
 import '../models/medicine_model.dart';
@@ -31,15 +32,36 @@ final List<GoRoute> routes = [
       path: '/new_treatment',
       builder: (context, state) => NewTreatmentScreen()),
   GoRoute(
+      path: '/one_time_take',
+      builder: (context, state) => OneTimeTakeScreen()),
+  GoRoute(
       path: '/schedule',
       builder: (context, state) {
-        final treatment = state.extra as Treatment;
+        Treatment treatment;
+        if (state.extra is Treatment) {
+          treatment = state.extra as Treatment;
+        } else if (state.extra is Map<String, dynamic>) {
+          // Convert Map to Treatment object
+          treatment = Treatment.fromJson(state.extra as Map<String, dynamic>);
+        } else {
+          // Fallback - create a default treatment
+          throw Exception('Invalid treatment data passed to schedule screen');
+        }
         return ScheduleScreen(treatment: treatment);
       }),
   GoRoute(
     path: '/duration',
     builder: (context, state) {
-      final treatment = state.extra as Treatment;
+      Treatment treatment;
+      if (state.extra is Treatment) {
+        treatment = state.extra as Treatment;
+      } else if (state.extra is Map<String, dynamic>) {
+        // Convert Map to Treatment object
+        treatment = Treatment.fromJson(state.extra as Map<String, dynamic>);
+      } else {
+        // Fallback - create a default treatment
+        throw Exception('Invalid treatment data passed to duration screen');
+      }
       return DurationScreen(treatment: treatment);
     },
   ),
@@ -62,7 +84,16 @@ final List<GoRoute> routes = [
   GoRoute(
       path: '/edit_treatment',
       builder: (context, state) {
-        final treatment = state.extra as Treatment;
+        Treatment treatment;
+        if (state.extra is Treatment) {
+          treatment = state.extra as Treatment;
+        } else if (state.extra is Map<String, dynamic>) {
+          // Convert Map to Treatment object
+          treatment = Treatment.fromJson(state.extra as Map<String, dynamic>);
+        } else {
+          // Fallback - create a default treatment
+          throw Exception('Invalid treatment data passed to edit treatment screen');
+        }
         return EditTreatmentScreen(treatment: treatment);
       }),
 ];

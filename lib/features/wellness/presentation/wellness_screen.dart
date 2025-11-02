@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
@@ -9,11 +10,11 @@ import 'package:pinkrain/core/widgets/bottom_navigation.dart';
 import 'package:pinkrain/features/journal/presentation/journal_notifier.dart';
 import 'package:pinkrain/features/wellness/domain/share_as_pdf.dart';
 import 'package:pinkrain/features/wellness/domain/wellness_tracker.dart';
-import 'package:pinkrain/features/wellness/presentation/components/mood_painter.dart';
 import 'package:pinkrain/features/wellness/presentation/components/personalized_insights.dart';
 import 'package:pinkrain/features/wellness/presentation/wellness_notifier.dart';
 import 'package:pretty_animated_text/pretty_animated_text.dart';
 
+import '../../../core/theme/colors.dart';
 import '../../../core/theme/icons.dart';
 import '../../../core/theme/tokens.dart';
 import 'components/mood_trend_chart.dart';
@@ -864,30 +865,11 @@ class WellnessTrackerScreenState extends ConsumerState<WellnessTrackerScreen> {
           // Force a rebuild to update the UI
           setState(() {});
         },
-        child: Container(
+        child: SvgPicture.asset(
+          'assets/icons/${_getMoodIconName(index)}.svg',
           width: 50,
           height: 50,
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.pink[100] : Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.grey[300]!),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.pink.withAlpha(76),
-                      spreadRadius: 1,
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    )
-                  ]
-                : null,
-          ),
-          child: Center(
-            child: CustomPaint(
-              painter: MoodPainter(index, isSelected),
-              size: const Size(30, 20),
-            ),
-          ),
+          colorFilter: _getMoodIconColorFilter(isSelected),
         ),
       );
     }
@@ -917,22 +899,44 @@ class WellnessTrackerScreenState extends ConsumerState<WellnessTrackerScreen> {
           });
         }
       },
-      child: Container(
+      child: SvgPicture.asset(
+        'assets/icons/${_getMoodIconName(index)}.svg',
         width: 50,
         height: 50,
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.grey[intensity] : Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Center(
-          child: CustomPaint(
-            painter: MoodPainter(index, isSelected && intensity >= 500),
-            size: const Size(30, 20),
-          ),
-        ),
+        colorFilter: _getMoodIconColorFilter(isSelected, intensity: intensity),
       ),
     );
+  }
+
+  /// Returns the appropriate ColorFilter for mood icons based on selection state and intensity
+  ColorFilter _getMoodIconColorFilter(bool isSelected, {int intensity = 500}) {
+    if (isSelected && intensity >= 500) {
+      return ColorFilter.mode(
+        AppColors.pink100,
+        BlendMode.srcIn,
+      );
+    }
+    return ColorFilter.mode(
+      AppColors.black40,
+      BlendMode.srcIn,
+    );
+  }
+
+  String _getMoodIconName(int mood) {
+    switch (mood) {
+      case 0:
+        return 'very-sad';
+      case 1:
+        return 'sad';
+      case 2:
+        return 'neutral';
+      case 3:
+        return 'happy';
+      case 4:
+        return 'very-happy';
+      default:
+        return 'neutral';
+    }
   }
 
   Widget _dayIndicator(String day, bool isComplete) {
