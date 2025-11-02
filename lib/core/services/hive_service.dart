@@ -270,6 +270,7 @@ class HiveService {
 
       if (isToday) {
         await saveUserMood(mood, description);
+        await setMoodEntryForToday();
       }
 
       devPrint(

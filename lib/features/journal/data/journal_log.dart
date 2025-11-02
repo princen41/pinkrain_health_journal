@@ -206,6 +206,36 @@ class JournalLog {
   // Data will be loaded when getMedicationsForTheDay is called
   JournalLog();
 
+  /// Deduplicate logs by (treatment_id, dose_time), preferring logs with
+  /// taken/skipped status over unknown status.
+  /// Returns the deduplicated list.
+  List<IntakeLog> _deduplicateLogs(List<IntakeLog> logs) {
+    final Map<String, IntakeLog> uniqueLogs = {};
+    for (final log in logs) {
+      // Create a unique key from treatment ID and dose time
+      String key;
+      if (log.doseTime != null) {
+        final hour = log.doseTime!.hour;
+        final minute = log.doseTime!.minute;
+        key = '${log.treatment.id}_$hour:$minute';
+      } else {
+        key = '${log.treatment.id}_default';
+      }
+      
+      // Keep the log with the most information (taken or skipped status)
+      if (!uniqueLogs.containsKey(key)) {
+        uniqueLogs[key] = log;
+      } else {
+        final existing = uniqueLogs[key]!;
+        // Prefer taken/skipped over unknown
+        if ((log.isTaken || log.isSkipped) && !existing.isTaken && !existing.isSkipped) {
+          uniqueLogs[key] = log;
+        }
+      }
+    }
+    return uniqueLogs.values.toList();
+  }
+
   /// Load medication logs from Hive storage
   Future<void> _loadMedicationLogs(DateTime date) async {
     date = date.normalize();
@@ -261,35 +291,11 @@ class JournalLog {
 
         // Deduplicate logs by (treatment_id, dose_time) - keep the most recent one
         if (intakeLogs.isNotEmpty) {
-          final Map<String, IntakeLog> uniqueLogs = {};
-          for (final log in intakeLogs) {
-            // Create a unique key from treatment ID and dose time
-            String key;
-            if (log.doseTime != null) {
-              final hour = log.doseTime!.hour;
-              final minute = log.doseTime!.minute;
-              key = '${log.treatment.id}_$hour:$minute';
-            } else {
-              key = '${log.treatment.id}_default';
-            }
-            
-            // Keep the most recent log if duplicates exist (prioritize taken/skipped status)
-            if (!uniqueLogs.containsKey(key)) {
-              uniqueLogs[key] = log;
-            } else {
-              // If we have a duplicate, keep the one with the most information (taken or skipped)
-              final existing = uniqueLogs[key]!;
-              if ((log.isTaken || log.isSkipped) && !existing.isTaken && !existing.isSkipped) {
-                uniqueLogs[key] = log;
-              } else if ((existing.isTaken || existing.isSkipped) && !log.isTaken && !log.isSkipped) {
-                // Keep existing if it has status
-                // uniqueLogs[key] = existing; // Already in map
-              }
-            }
+          final deduplicatedLogs = _deduplicateLogs(intakeLogs);
+          final wasDeduplicated = deduplicatedLogs.length < intakeLogs.length;
+          if (wasDeduplicated) {
+            devPrint("Deduplicated ${intakeLogs.length} logs to ${deduplicatedLogs.length} unique entries");
           }
-          
-          final deduplicatedLogs = uniqueLogs.values.toList();
-          devPrint("Deduplicated ${intakeLogs.length} logs to ${deduplicatedLogs.length} unique entries");
           medicationLogs[date] = deduplicatedLogs;
           return;
         }
@@ -701,30 +707,7 @@ class JournalLog {
     }
 
     // Deduplicate logs by (treatment_id, dose_time) - keep the one with most info
-    final Map<String, IntakeLog> uniqueLogs = {};
-    for (final log in updatedLogs) {
-      // Create a unique key from treatment ID and dose time
-      String key;
-      if (log.doseTime != null) {
-        final hour = log.doseTime!.hour;
-        final minute = log.doseTime!.minute;
-        key = '${log.treatment.id}_$hour:$minute';
-      } else {
-        key = '${log.treatment.id}_default';
-      }
-      
-      // Keep the log with the most information (taken or skipped status)
-      if (!uniqueLogs.containsKey(key)) {
-        uniqueLogs[key] = log;
-      } else {
-        final existing = uniqueLogs[key]!;
-        if ((log.isTaken || log.isSkipped) && !existing.isTaken && !existing.isSkipped) {
-          uniqueLogs[key] = log;
-        }
-      }
-    }
-    
-    final deduplicatedLogs = uniqueLogs.values.toList();
+    final deduplicatedLogs = _deduplicateLogs(updatedLogs);
     final wasDeduplicated = deduplicatedLogs.length < updatedLogs.length;
     if (wasDeduplicated) {
       devPrint("Deduplicated ${updatedLogs.length} logs to ${deduplicatedLogs.length} unique entries in forceReload");
