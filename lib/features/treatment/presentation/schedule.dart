@@ -457,16 +457,26 @@ class ScheduleScreenState extends State<ScheduleScreen> {
           Expanded(
             child: Button.primary(
               onPressed: () {
-                // Parse the first dose time for the treatment plan
-                String firstDoseTime = doseTimes.values.first;
-                List<String> timeParts = firstDoseTime.split(':');
-                widget.treatment.treatmentPlan.timeOfDay = DateTime(
-                  DateTime.now().year,
-                  DateTime.now().month,
-                  DateTime.now().day,
-                  int.parse(timeParts[0]),
-                  int.parse(timeParts[1]),
-                );
+                // Parse ALL dose times for the treatment plan
+                List<DateTime> allDoseTimes = [];
+                for (String timeStr in doseTimes.values) {
+                  List<String> timeParts = timeStr.split(':');
+                  if (timeParts.length == 2) {
+                    int hour = int.tryParse(timeParts[0]) ?? 10;
+                    int minute = int.tryParse(timeParts[1]) ?? 0;
+                    final doseTime = createTimeOfDay(hour, minute);
+                    allDoseTimes.add(doseTime);
+                  }
+                }
+                
+                // Set the first dose time as the primary timeOfDay for backward compatibility
+                if (allDoseTimes.isNotEmpty) {
+                  widget.treatment.treatmentPlan.timeOfDay = allDoseTimes.first;
+                }
+                
+                // Set all dose times in the doseTimes list
+                widget.treatment.treatmentPlan.doseTimes = allDoseTimes;
+                
                 context.push('/duration', extra: widget.treatment);
               },
               text: 'Continue',

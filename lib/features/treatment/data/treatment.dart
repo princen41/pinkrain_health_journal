@@ -6,6 +6,7 @@ class TreatmentPlan {
   DateTime startDate;
   DateTime endDate;
   DateTime timeOfDay = DateTime(1970, 1, 1, 11, 0);
+  List<DateTime> doseTimes; // Support for multiple doses per day
   final String mealOption;
   final String instructions;
   final Duration frequency;
@@ -16,11 +17,21 @@ class TreatmentPlan {
     required this.startDate,
     required this.endDate,
     required this.timeOfDay,
+    List<DateTime>? doseTimes,
     this.mealOption = '',
     this.instructions = '',
     this.frequency = const Duration(days: 1),
     this.selectedDays = const [true, true, true, true, true, true, true] // Default to all days
-  });
+  }) : doseTimes = doseTimes ?? []; // Initialize doseTimes list
+  
+  /// Get all dose times for this treatment. If doseTimes is populated, use it.
+  /// Otherwise, fall back to the single timeOfDay for backward compatibility.
+  List<DateTime> getAllDoseTimes() {
+    if (doseTimes.isNotEmpty) {
+      return doseTimes;
+    }
+    return [timeOfDay];
+  }
 
   bool isOnGoing() {
     return startDate.isBefore(DateTime.now()) && endDate.isAfter(DateTime.now());

@@ -85,9 +85,25 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
     selectedMealOption = widget.treatment.treatmentPlan.mealOption;
     selectedDoseUnit = widget.treatment.medicine.specs.unit;
     
-    // Initialize schedule and duration
-    doseTimes = {'Dose 1': widget.treatment.formattedTimeOfDay()};
-    doseControllers = {'Dose 1': TextEditingController(text: 'Dose 1')};
+    // Initialize schedule and duration - load all existing dose times
+    final existingDoseTimes = widget.treatment.treatmentPlan.getAllDoseTimes();
+    
+    if (existingDoseTimes.isNotEmpty) {
+      doseTimes = {};
+      doseControllers = {};
+      for (int i = 0; i < existingDoseTimes.length; i++) {
+        final time = existingDoseTimes[i];
+        final hour = time.hour.toString().padLeft(2, '0');
+        final minute = time.minute.toString().padLeft(2, '0');
+        final doseKey = 'Dose ${i + 1}';
+        doseTimes[doseKey] = '$hour:$minute';
+        doseControllers[doseKey] = TextEditingController(text: doseKey);
+      }
+    } else {
+      // Fallback to single dose if no dose times exist
+      doseTimes = {'Dose 1': widget.treatment.formattedTimeOfDay()};
+      doseControllers = {'Dose 1': TextEditingController(text: 'Dose 1')};
+    }
     selectedReminder = 'at time of event';
     selectedDays = List.from(widget.treatment.treatmentPlan.selectedDays);
     selectedDurationUnit = 'days';
@@ -359,12 +375,23 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                   ),
                 );
 
-              // Parse the first dose time for timeOfDay
-              String firstDoseTime = doseTimes.values.first;
-              List<String> timeParts = firstDoseTime.split(':');
-              int hour = int.tryParse(timeParts[0]) ?? 10;
-              int minute = int.tryParse(timeParts[1]) ?? 0;
-              DateTime timeOfDay = createTimeOfDay(hour, minute);
+              // Parse ALL dose times for the treatment plan
+              List<DateTime> allDoseTimes = [];
+              for (var entry in doseTimes.entries) {
+                final timeStr = entry.value;
+                List<String> timeParts = timeStr.split(':');
+                if (timeParts.length == 2) {
+                  int hour = int.tryParse(timeParts[0]) ?? 10;
+                  int minute = int.tryParse(timeParts[1]) ?? 0;
+                  DateTime doseTime = createTimeOfDay(hour, minute);
+                  allDoseTimes.add(doseTime);
+                }
+              }
+              
+              // Use the first dose time as the primary timeOfDay for backward compatibility
+              DateTime timeOfDay = allDoseTimes.isNotEmpty 
+                  ? allDoseTimes.first 
+                  : createTimeOfDay(10, 0);
 
               // Convert duration based on selected unit
               DateTime calculatedEndDate;
@@ -414,6 +441,7 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                 startDate: startDate,
                 endDate: calculatedEndDate.normalize(),
                 timeOfDay: timeOfDay,
+                doseTimes: allDoseTimes, // Include all dose times
                 mealOption: selectedMealOption,
                 instructions: widget.treatment.treatmentPlan.instructions,
                 frequency: widget.treatment.treatmentPlan.frequency,
@@ -887,7 +915,8 @@ class EditTreatmentScreenState extends ConsumerState<EditTreatmentScreen> {
                                       initialDateTime: createTimeOfDay(currentHour, currentMinute),
                                       onDateTimeChanged: (DateTime newDateTime) {
                                         setState(() {
-                                          doseTimes[doseName] = '${newDateTime.hour.toString().padLeft(2, '0')}:${newDateTime.minute.toString().padLeft(2, '0')}';
+                                          final newTimeStr = '${newDateTime.hour.toString().padLeft(2, '0')}:${newDateTime.minute.toString().padLeft(2, '0')}';
+                                          doseTimes[doseName] = newTimeStr;
                                         });
                                       },
                                     ),

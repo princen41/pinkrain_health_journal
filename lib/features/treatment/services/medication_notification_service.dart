@@ -189,16 +189,18 @@ class MedicationNotificationService {
     for (var medication in medications) {
       // Only show notifications for untaken medications
       if (!medication.isTaken) {
-        // Create unique ID using full date (YYYYMMDD) to prevent cross-day conflicts
+        // Create unique ID using full date (YYYYMMDD) and time (HHMM) to prevent conflicts
         final dateKey = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+        final DateTime timeSource = medication.doseTime ?? medication.treatment.treatmentPlan.timeOfDay;
+        final timeKey = '${timeSource.hour.toString().padLeft(2, '0')}${timeSource.minute.toString().padLeft(2, '0')}';
         final treatmentId = medication.treatment.id;
         final String medicationId;
         if (treatmentId.isNotEmpty) {
-          medicationId = '${treatmentId}_$dateKey';
+          medicationId = '${treatmentId}_${dateKey}_$timeKey';
         } else {
           // Fallback: use medicine name + start timestamp
           final startTimestamp = medication.treatment.treatmentPlan.startDate.millisecondsSinceEpoch;
-          medicationId = '${medication.treatment.medicine.name}_${startTimestamp}_$dateKey';
+          medicationId = '${medication.treatment.medicine.name}_${startTimestamp}_${dateKey}_$timeKey';
         }
         
         // Check if we've already notified for this medication today
@@ -206,12 +208,12 @@ class MedicationNotificationService {
           // Only show immediate notifications for overdue medications (>5 min past scheduled time)
           bool isOverdue = false;
           
-          // Use treatmentPlan.timeOfDay instead of scheduledTime
-          final timeOfDay = medication.treatment.treatmentPlan.timeOfDay;
+          // Use the specific doseTime if available (for multi-dose treatments)
+          final DateTime timeSource = medication.doseTime ?? medication.treatment.treatmentPlan.timeOfDay;
           try {
             // Extract hour and minute from the timeOfDay DateTime
-            final hour = timeOfDay.hour;
-            final minute = timeOfDay.minute;
+            final hour = timeSource.hour;
+            final minute = timeSource.minute;
             
             final scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
             // Consider medication overdue if it's more than 5 minutes past scheduled time
@@ -227,9 +229,12 @@ class MedicationNotificationService {
           if (isOverdue) {
             devPrint('🔔 Showing immediate notification for overdue medication: ${medication.treatment.medicine.name}');
             
+            // Format the specific dose time for the notification
+            final String scheduledTimeStr = '${timeSource.hour.toString().padLeft(2, '0')}:${timeSource.minute.toString().padLeft(2, '0')}';
+            
             await _showMedicationNotification(
               id: notificationId,
-              title: '${medication.treatment.medicine.name} was scheduled for ${medication.treatment.formattedTimeOfDay()}',
+              title: '${medication.treatment.medicine.name} was scheduled for $scheduledTimeStr',
               body: "You haven't taken your medication yet!",
               medicationId: medicationId,
             );

@@ -1255,10 +1255,13 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
     String type = medication.medicine.type.toLowerCase();
     final String dosage =
         '${medication.medicine.specs.dosage} ${medication.medicine.specs.unit}';
-    final String time = medication.formattedTimeOfDay();
+    // Use the specific dose time if available, otherwise fall back to treatment's general time
+    final DateTime timeSource = medicineLog.doseTime ?? medication.treatmentPlan.timeOfDay;
+    final String time = '${timeSource.hour.toString().padLeft(2, '0')}:${timeSource.minute.toString().padLeft(2, '0')}';
     final String color = medication.medicine.color;
 
-    if (type.endsWith('s')) {
+    // Remove trailing 's' for plurals, but keep "drops" as is since it's not a plural
+    if (type.endsWith('s') && type != 'drops') {
       type = type.substring(0, type.length - 1);
     }
 
@@ -1852,7 +1855,18 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
   }
 
   String _getScheduleDescription(Treatment medication) {
-    final time = medication.formattedTimeOfDay();
+    // Get all dose times for this treatment
+    final doseTimes = medication.treatmentPlan.getAllDoseTimes();
+    String timeStr;
+    if (doseTimes.length == 1) {
+      final time = doseTimes[0];
+      timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else {
+      // Multiple doses per day - show all times
+      final times = doseTimes.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').toList();
+      timeStr = times.join(', ');
+    }
+    
     final duration = _formatDuration(
         medication.treatmentPlan.startDate, medication.treatmentPlan.endDate);
 
@@ -1877,7 +1891,7 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
       daysStr = '${activeDays.length} days/week';
     }
 
-    return '$daysStr at $time for $duration';
+    return '$daysStr at $timeStr for $duration';
   }
 
   Widget _buildInfoItem(String text) {

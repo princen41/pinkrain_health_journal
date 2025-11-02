@@ -483,8 +483,10 @@ class DurationScreenState extends ConsumerState<DurationScreen> {
                   selectedDays: selectedDays,
                 );
                 
-                // Preserve the time from the original treatment
+                // Preserve the time and ALL dose times from the original treatment
                 updatedTreatment.treatmentPlan.timeOfDay = widget.treatment.treatmentPlan.timeOfDay;
+                // Preserve all dose times that were set in the schedule screen
+                updatedTreatment.treatmentPlan.doseTimes = List.from(widget.treatment.treatmentPlan.doseTimes);
                 
                 await treatmentManager.saveTreatment(updatedTreatment);
                 

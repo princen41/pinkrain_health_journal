@@ -77,10 +77,11 @@ class MedicationSchedulerService {
       if (!medication.isTaken && !medication.isSkipped) {
         final scheduledTime = _getScheduledTimeForMedication(medication);
         final dateKey = '${scheduledTime.year}${scheduledTime.month.toString().padLeft(2, '0')}${scheduledTime.day.toString().padLeft(2, '0')}';
+        final timeKey = '${scheduledTime.hour.toString().padLeft(2, '0')}${scheduledTime.minute.toString().padLeft(2, '0')}';
         final treatmentId = medication.treatment.id;
         final medicationId = treatmentId.isNotEmpty 
-            ? '${treatmentId}_$dateKey'
-            : '${medication.treatment.medicine.name}_$dateKey';
+            ? '${treatmentId}_${dateKey}_$timeKey'
+            : '${medication.treatment.medicine.name}_${dateKey}_$timeKey';
         medicationIdsToSchedule.add(medicationId);
       }
     }
@@ -114,12 +115,13 @@ class MedicationSchedulerService {
           continue;
         }
         
-        // Create unique ID using full date (YYYYMMDD) to prevent cross-day conflicts
+        // Create unique ID using full date (YYYYMMDD) and time (HHMM) to prevent conflicts
         final dateKey = '${scheduledTime.year}${scheduledTime.month.toString().padLeft(2, '0')}${scheduledTime.day.toString().padLeft(2, '0')}';
+        final timeKey = '${scheduledTime.hour.toString().padLeft(2, '0')}${scheduledTime.minute.toString().padLeft(2, '0')}';
         final treatmentId = medication.treatment.id;
         final medicationId = treatmentId.isNotEmpty 
-            ? '${treatmentId}_$dateKey'
-            : '${medication.treatment.medicine.name}_$dateKey';
+            ? '${treatmentId}_${dateKey}_$timeKey'
+            : '${medication.treatment.medicine.name}_${dateKey}_$timeKey';
         
         // Generate a unique ID for the notification
         final notificationId = _generateNotificationId();
@@ -329,12 +331,13 @@ class MedicationSchedulerService {
   /// Returns the scheduled time for TODAY only (doesn't reschedule to tomorrow)
   /// Caller is responsible for checking if time is in the past
   DateTime _getScheduledTimeForMedication(IntakeLog medication) {
-    // Try to get the scheduled time from the medication
-    final timeOfDay = medication.treatment.treatmentPlan.timeOfDay;
+    // Use the specific doseTime if available (for multi-dose treatments)
+    final DateTime timeSource = medication.doseTime ?? medication.treatment.treatmentPlan.timeOfDay;
+    
     try {
       // Extract hour and minute from the timeOfDay DateTime
-      final hour = timeOfDay.hour;
-      final minute = timeOfDay.minute;
+      final hour = timeSource.hour;
+      final minute = timeSource.minute;
       
       final now = DateTime.now();
       var scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);

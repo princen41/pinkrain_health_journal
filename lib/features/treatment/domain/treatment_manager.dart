@@ -53,6 +53,7 @@ class Treatment {
         'startDate': treatmentPlan.startDate.toIso8601String(),
         'endDate': treatmentPlan.endDate.toIso8601String(),
         'timeOfDay': treatmentPlan.timeOfDay.toIso8601String(),
+        'doseTimes': treatmentPlan.doseTimes.map((t) => t.toIso8601String()).toList(),
         'mealOption': treatmentPlan.mealOption,
         'instructions': treatmentPlan.instructions,
         'frequency': treatmentPlan.frequency.inDays,
@@ -84,10 +85,20 @@ class Treatment {
         ),
       );
 
+      // Parse doseTimes if available, otherwise use empty list
+      List<DateTime> doseTimes = [];
+      if (treatmentPlanJson.containsKey('doseTimes') && treatmentPlanJson['doseTimes'] != null) {
+        final doseTimesJson = treatmentPlanJson['doseTimes'] as List<dynamic>?;
+        if (doseTimesJson != null) {
+          doseTimes = doseTimesJson.map((t) => DateTime.parse(t as String)).toList();
+        }
+      }
+
       final treatmentPlan = TreatmentPlan(
         startDate: DateTime.parse(treatmentPlanJson['startDate'] as String),
         endDate: DateTime.parse(treatmentPlanJson['endDate'] as String),
         timeOfDay: DateTime.parse(treatmentPlanJson['timeOfDay'] as String),
+        doseTimes: doseTimes,
         mealOption: treatmentPlanJson['mealOption'] as String,
         instructions: treatmentPlanJson['instructions'] as String,
         frequency: Duration(days: treatmentPlanJson['frequency'] as int),
