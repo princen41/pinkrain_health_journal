@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:pinkrain/core/theme/tokens.dart';
 
 import '../../../core/widgets/appbar.dart';
@@ -11,7 +12,7 @@ class MindfulnessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTokens.bgPrimary,
       appBar: buildAppBar('Mindfulness'),
       body: SafeArea(
         child: Padding(
@@ -19,19 +20,16 @@ class MindfulnessScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Choose a mindfulness practice',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: AppTokens.textStyleXLarge.copyWith(fontSize: 20),
               ),
               const SizedBox(height: 24),
               _buildMindfulnessOption(
                 context,
                 title: 'Breathing Exercises',
                 description: 'Calm your mind with guided breathing techniques',
-                icon: Icons.air,
+                icon: HugeIcons.strokeRoundedFastWind,
                 route: '/breath',
               ),
               const SizedBox(height: 16),
@@ -39,7 +37,7 @@ class MindfulnessScreen extends StatelessWidget {
                 context,
                 title: 'Guided Meditation',
                 description: 'Relax with soothing audio meditations',
-                icon: Icons.spa,
+                icon: HugeIcons.strokeRoundedYoga02,
                 route: '/meditation',
               ),
             ],
@@ -57,7 +55,7 @@ class MindfulnessScreen extends StatelessWidget {
     BuildContext context, {
     required String title,
     required String description,
-    required IconData icon,
+    required dynamic icon,
     required String route,
   }) {
     return GestureDetector(
@@ -68,21 +66,19 @@ class MindfulnessScreen extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppTokens.bgCard,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: AppTokens.borderLight,
+            width: 1,
+          ),
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTokens.bgPrimary,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: AppTokens.iconBold,
-                size: 28,
-              ),
+            HugeIcon(
+              icon: icon,
+              color: AppTokens.iconPrimary,
+              size: 28,
+              strokeWidth: 1,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -91,26 +87,23 @@ class MindfulnessScreen extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTokens.textStyleLarge,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
+                    style: AppTokens.textStyleSmall.copyWith(
+                      color: AppTokens.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.grey[400],
-              size: 16,
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowRight01,
+              color: AppTokens.iconMuted,
+              size: 24,
+              strokeWidth: 1,
             ),
           ],
         ),
