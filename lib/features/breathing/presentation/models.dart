@@ -111,16 +111,17 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
 
     switch (state.stage) {
       case BreathingStage.inhale:
-        // Both exercises: inhale -> hold
-        nextStage = BreathingStage.hold;
+        // Box and 4-7-8 use holds after inhale, calm goes straight to exhale
+        nextStage = (state.exerciseType == 'box' || state.exerciseType == '4-7-8')
+            ? BreathingStage.hold
+            : BreathingStage.exhale;
         break;
       case BreathingStage.hold:
-        // Decide next stage based on what preceded the hold
+        // If hold followed inhale -> exhale (for both box and 4-7-8)
+        // If hold followed exhale -> rest (only for box)
         if (state.previousStage == BreathingStage.inhale) {
-          // Hold after inhale -> exhale
           nextStage = BreathingStage.exhale;
         } else if (state.previousStage == BreathingStage.exhale) {
-          // Hold after exhale -> rest (for box) or rest (for 4-7-8)
           nextStage = BreathingStage.rest;
         } else {
           // Fallback: assume hold after inhale
@@ -128,6 +129,8 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
         }
         break;
       case BreathingStage.exhale:
+        // Box exercise: exhale -> hold
+        // 4-7-8 and calm: exhale -> rest
         nextStage = state.exerciseType == 'box'
             ? BreathingStage.hold
             : BreathingStage.rest;
@@ -246,7 +249,7 @@ String getStageText(BreathingStage stage) {
     case BreathingStage.exhale:
       return 'Breathe Out';
     case BreathingStage.rest:
-      return 'Hold again';
+      return 'Rest';
     case BreathingStage.completed:
       return 'Completed';
     default:
