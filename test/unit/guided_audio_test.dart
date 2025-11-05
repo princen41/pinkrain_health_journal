@@ -49,9 +49,8 @@ void main() {
 
       // Assert
       expect(categories, isA<List<String>>());
-      expect(categories.length, equals(4)); // Based on the predefined tracks
+      expect(categories.length, equals(3)); // Based on the currently active tracks (Rest & Stillness tracks are commented out)
       expect(categories, contains("Self-Acceptance"));
-      expect(categories, contains("Rest & Stillness"));
       expect(categories, contains("Emotional Processing"));
       expect(categories, contains("Grief & Loss"));
 
@@ -63,20 +62,26 @@ void main() {
         () {
       // Act
       final selfAcceptanceTracks = state.getTracksByCategory("Self-Acceptance");
-      final restTracks = state.getTracksByCategory("Rest & Stillness");
+      final emotionalProcessingTracks = state.getTracksByCategory("Emotional Processing");
+      final griefLossTracks = state.getTracksByCategory("Grief & Loss");
 
       // Assert
       expect(selfAcceptanceTracks.length,
-          equals(3)); // Based on the predefined tracks
-      expect(restTracks.length, equals(2)); // Based on the predefined tracks
+          equals(2)); // Based on the currently active tracks
+      expect(emotionalProcessingTracks.length, equals(1)); // Based on the currently active tracks
+      expect(griefLossTracks.length, equals(1)); // Based on the currently active tracks
 
       // Verify all tracks in the category have the correct category
       for (var track in selfAcceptanceTracks) {
         expect(track.category, equals("Self-Acceptance"));
       }
 
-      for (var track in restTracks) {
-        expect(track.category, equals("Rest & Stillness"));
+      for (var track in emotionalProcessingTracks) {
+        expect(track.category, equals("Emotional Processing"));
+      }
+
+      for (var track in griefLossTracks) {
+        expect(track.category, equals("Grief & Loss"));
       }
     });
   });

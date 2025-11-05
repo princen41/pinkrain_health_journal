@@ -34,7 +34,6 @@ class GuidedMeditationScreen extends StatefulWidget {
 class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with WidgetsBindingObserver {
   late final AudioPlayer _player;
   Duration _position = Duration.zero;
-  Duration _duration = Duration(minutes: 5);
   MeditationTrack? _nowPlaying;
   bool _isLoading = false;
   String? _errorMessage;
@@ -168,8 +167,9 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
       // Set up duration stream listener
       devPrint("[DEBUG_LOG] Setting up duration stream listener");
       _player.durationStream.listen((duration) {
+        // Duration is available but not used in current minimal UI design
         if (mounted && duration != null) {
-          setState(() => _duration = duration);
+          // Could be used for future features like progress bar
         }
       });
 
@@ -253,7 +253,6 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
         // 2. Reset position state
         setState(() {
           _position = Duration.zero;
-          _duration = Duration.zero;
         });
 
         // 3. Load the new asset and seek to start

@@ -7,6 +7,14 @@ final breathingExerciseProvider =
   (ref) => BreathingExerciseNotifier(),
 );
 
+// Sentinel class used to distinguish "not provided" from "explicitly null" in copyWith
+class _Sentinel {
+  const _Sentinel();
+}
+
+// Sentinel object used to distinguish "not provided" from "explicitly null" in copyWith
+const _sentinel = _Sentinel();
+
 class BreathingState {
   final BreathingStage stage;
   final BreathingStage? previousStage;
@@ -24,9 +32,14 @@ class BreathingState {
     required this.exerciseType,
   });
 
+  /// Creates a copy of this state with the given fields replaced with new values.
+  ///
+  /// [previousStage] uses a sentinel pattern: pass `_sentinel` (or omit) to keep
+  /// the existing value, or pass a `BreathingStage?` (including `null`) to explicitly
+  /// set the field.
   BreathingState copyWith({
     BreathingStage? stage,
-    BreathingStage? previousStage,
+    Object? previousStage = _sentinel,
     int? secondsRemaining,
     int? totalCycles,
     int? currentCycle,
@@ -34,7 +47,9 @@ class BreathingState {
   }) {
     return BreathingState(
       stage: stage ?? this.stage,
-      previousStage: previousStage ?? this.previousStage,
+      previousStage: identical(previousStage, _sentinel)
+          ? this.previousStage
+          : previousStage as BreathingStage?,
       secondsRemaining: secondsRemaining ?? this.secondsRemaining,
       totalCycles: totalCycles ?? this.totalCycles,
       currentCycle: currentCycle ?? this.currentCycle,
@@ -118,11 +133,37 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
         break;
       case BreathingStage.hold:
         // If hold followed inhale -> exhale (for both box and 4-7-8)
-        // If hold followed exhale -> rest (only for box)
+        // If hold followed exhale -> inhale (for box, no rest) or rest (for non-box)
         if (state.previousStage == BreathingStage.inhale) {
           nextStage = BreathingStage.exhale;
         } else if (state.previousStage == BreathingStage.exhale) {
-          nextStage = BreathingStage.rest;
+          // Box breathing: hold (after exhale) -> inhale (next cycle, no rest)
+          if (state.exerciseType == 'box') {
+            // Move to next cycle: hold -> inhale
+            if (state.currentCycle < state.totalCycles) {
+              nextStage = BreathingStage.inhale;
+              state = state.copyWith(
+                stage: nextStage,
+                previousStage: state.stage,
+                secondsRemaining: _getDuration(state.exerciseType, nextStage),
+                currentCycle: state.currentCycle + 1,
+              );
+              return;
+            } else {
+              // Last cycle completed
+              nextStage = BreathingStage.completed;
+              _timer?.cancel();
+              state = state.copyWith(
+                stage: nextStage,
+                previousStage: state.stage,
+                secondsRemaining: 0,
+              );
+              return;
+            }
+          } else {
+            // Non-box exercises: hold -> rest
+            nextStage = BreathingStage.rest;
+          }
         } else {
           // Fallback: assume hold after inhale
           nextStage = BreathingStage.exhale;
@@ -136,6 +177,30 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
             : BreathingStage.rest;
         break;
       case BreathingStage.rest:
+        // Safety guard: box breathing should never reach rest, but if it does, advance immediately
+        if (state.exerciseType == 'box') {
+          // Box breathing should not have rest - immediately advance to next cycle
+          if (state.currentCycle < state.totalCycles) {
+            nextStage = BreathingStage.inhale;
+            state = state.copyWith(
+              stage: nextStage,
+              previousStage: state.stage,
+              secondsRemaining: _getDuration(state.exerciseType, nextStage),
+              currentCycle: state.currentCycle + 1,
+            );
+            return;
+          } else {
+            nextStage = BreathingStage.completed;
+            _timer?.cancel();
+            state = state.copyWith(
+              stage: nextStage,
+              previousStage: state.stage,
+              secondsRemaining: 0,
+            );
+            return;
+          }
+        }
+        // Normal rest handling for non-box exercises
         // Check if we need to move to the next cycle or complete the exercise
         if (state.currentCycle < state.totalCycles) {
           nextStage = BreathingStage.inhale;
@@ -168,36 +233,7 @@ class BreathingExerciseNotifier extends StateNotifier<BreathingState> {
   }
 
   int _getDuration(String exerciseType, BreathingStage stage) {
-    switch (exerciseType) {
-      case 'box':
-        return 4; // All stages are 4 seconds in box breathing
-      case '4-7-8':
-        switch (stage) {
-          case BreathingStage.inhale:
-            return 4;
-          case BreathingStage.hold:
-            return 7;
-          case BreathingStage.exhale:
-            return 8;
-          case BreathingStage.rest:
-            return 2;
-          default:
-            return 4;
-        }
-      case 'calm':
-        switch (stage) {
-          case BreathingStage.inhale:
-            return 5;
-          case BreathingStage.exhale:
-            return 5;
-          case BreathingStage.rest:
-            return 2;
-          default:
-            return 5;
-        }
-      default:
-        return 4;
-    }
+    return getStageDuration(exerciseType, stage);
   }
 
   @override
