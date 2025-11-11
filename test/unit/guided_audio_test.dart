@@ -13,7 +13,7 @@ void main() {
     test('should create a MeditationTrack with correct properties', () {
       // Arrange
       const title = "Test Track";
-      const subtitle = "5 min test";
+      const duration = "5 min test";
       const description = "Test description";
       const assetPath = "assets/audio-tracks/Test_Track.m4a";
       const category = "Test Category";
@@ -21,7 +21,7 @@ void main() {
       // Act
       final track = MeditationTrack(
         title: title,
-        subtitle: subtitle,
+        duration: duration,
         description: description,
         assetPath: assetPath,
         category: category,
@@ -29,7 +29,7 @@ void main() {
 
       // Assert
       expect(track.title, equals(title));
-      expect(track.subtitle, equals(subtitle));
+      expect(track.duration, equals(duration));
       expect(track.description, equals(description));
       expect(track.assetPath, equals(assetPath));
       expect(track.category, equals(category));
@@ -49,9 +49,8 @@ void main() {
 
       // Assert
       expect(categories, isA<List<String>>());
-      expect(categories.length, equals(4)); // Based on the predefined tracks
+      expect(categories.length, equals(3)); // Based on the currently active tracks (Rest & Stillness tracks are commented out)
       expect(categories, contains("Self-Acceptance"));
-      expect(categories, contains("Rest & Stillness"));
       expect(categories, contains("Emotional Processing"));
       expect(categories, contains("Grief & Loss"));
 
@@ -63,20 +62,26 @@ void main() {
         () {
       // Act
       final selfAcceptanceTracks = state.getTracksByCategory("Self-Acceptance");
-      final restTracks = state.getTracksByCategory("Rest & Stillness");
+      final emotionalProcessingTracks = state.getTracksByCategory("Emotional Processing");
+      final griefLossTracks = state.getTracksByCategory("Grief & Loss");
 
       // Assert
       expect(selfAcceptanceTracks.length,
-          equals(3)); // Based on the predefined tracks
-      expect(restTracks.length, equals(2)); // Based on the predefined tracks
+          equals(2)); // Based on the currently active tracks
+      expect(emotionalProcessingTracks.length, equals(1)); // Based on the currently active tracks
+      expect(griefLossTracks.length, equals(1)); // Based on the currently active tracks
 
       // Verify all tracks in the category have the correct category
       for (var track in selfAcceptanceTracks) {
         expect(track.category, equals("Self-Acceptance"));
       }
 
-      for (var track in restTracks) {
-        expect(track.category, equals("Rest & Stillness"));
+      for (var track in emotionalProcessingTracks) {
+        expect(track.category, equals("Emotional Processing"));
+      }
+
+      for (var track in griefLossTracks) {
+        expect(track.category, equals("Grief & Loss"));
       }
     });
   });
@@ -86,7 +91,7 @@ void main() {
       // Arrange
       final trackWithApostrophe = MeditationTrack(
         title: "You're Not a Burden",
-        subtitle: "5 min test",
+        duration: "5 min test",
         description: "Test description",
         assetPath: "assets/audio-tracks/You're_Not_a_Burden.m4a",
         category: "Test",
@@ -105,7 +110,7 @@ void main() {
       // Arrange
       final trackWithoutApostrophe = MeditationTrack(
         title: "The Voice You Needed",
-        subtitle: "5 min test",
+        duration: "5 min test",
         description: "Test description",
         assetPath: "assets/audio-tracks/The_Voice_You_Needed.m4a",
         category: "Test",
@@ -124,7 +129,7 @@ void main() {
       // Arrange
       final trackWithMultipleApostrophes = MeditationTrack(
         title: "Track with multiple apostrophes",
-        subtitle: "5 min test",
+        duration: "5 min test",
         description: "Test description",
         assetPath:
             "assets/audio-tracks/Track's_with_multiple's_apostrophes.m4a",

@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
-
+import 'package:hugeicons/hugeicons.dart';
 import '../../core/util/helpers.dart';
 import '../../core/widgets/appbar.dart';
 import '../../core/widgets/bottom_navigation.dart';
+import '../../core/theme/tokens.dart';
+import '../../core/theme/colors.dart';
 
 class MeditationTrack {
   final String title;
-  final String subtitle;
+  final String duration;
   final String description;
   final String assetPath;
   final String category;
 
   MeditationTrack({
     required this.title,
-    required this.subtitle,
+    required this.duration,
     required this.description,
     required this.assetPath,
     required this.category,
@@ -32,7 +34,6 @@ class GuidedMeditationScreen extends StatefulWidget {
 class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with WidgetsBindingObserver {
   late final AudioPlayer _player;
   Duration _position = Duration.zero;
-  Duration _duration = Duration(minutes: 5);
   MeditationTrack? _nowPlaying;
   bool _isLoading = false;
   String? _errorMessage;
@@ -42,76 +43,82 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
     // Self-Acceptance
     MeditationTrack(
       title: "The Voice You Needed",
-      subtitle: "5 min grounding",
+      duration: "5 min grounding",
       description: "Calm your nerves",
       assetPath: "assets/audio-tracks/The_Voice_You_Needed.m4a",
       category: "Self-Acceptance",
     ),
-    MeditationTrack(
-      title: "You're Not a Burden",
-      subtitle: "5 min grounding",
-      description: "You're allowed to exist",
-      assetPath: "assets/audio-tracks/Youre_Not_a_Burden.m4a", // Sanitized path
-      category: "Self-Acceptance",
-    ),
+    // Temporarily commented out - file loading issues
+    // MeditationTrack(
+    //   title: "You're Not a Burden",
+    //   duration: "5 min grounding",
+    //   description: "You're allowed to exist",
+    //   assetPath: "assets/audio-tracks/Youre_Not_a_Burden.m4a",
+    //   category: "Self-Acceptance",
+    // ),
     MeditationTrack(
       title: "The Quiet Part of You Still Counts",
-      subtitle: "5 min grounding",
+      duration: "5 min grounding",
       description: "Even your silence is worthy",
       assetPath: "assets/audio-tracks/The_Quiet_Part_of_You_Still_Counts.m4a",
       category: "Self-Acceptance",
     ),
 
     // Rest & Stillness
-    MeditationTrack(
-      title: "This Isn't Laziness",
-      subtitle: "5 min grounding",
-      description: "Understand your stillness",
-      assetPath: "assets/audio-tracks/This_Isnt_Laziness.m4a", // Sanitized path
-      category: "Rest & Stillness",
-    ),
-    MeditationTrack(
-      title: "You Don't Have to Earn Rest",
-      subtitle: "5 min grounding",
-      description: "Rest is your right",
-      assetPath: "assets/audio-tracks/You_Dont_Have_to_Earn_Rest.m4a", // Sanitized path
-      category: "Rest & Stillness",
-    ),
+    // Temporarily commented out - file loading issues
+    // MeditationTrack(
+    //   title: "This Isn't Laziness",
+    //   duration: "5 min grounding",
+    //   description: "Understand your stillness",
+    //   assetPath: "assets/audio-tracks/This_Isnt_Laziness.m4a",
+    //   category: "Rest & Stillness",
+    // ),
+    // Temporarily commented out - file loading issues
+    // MeditationTrack(
+    //   title: "You Don't Have to Earn Rest",
+    //   duration: "5 min grounding",
+    //   description: "Rest is your right",
+    //   assetPath: "assets/audio-tracks/You_Dont_Have_to_Earn_Rest.m4a",
+    //   category: "Rest & Stillness",
+    // ),
 
     // Emotional Processing
     MeditationTrack(
       title: "What You Feel is Real",
-      subtitle: "5 min grounding",
+      duration: "5 min grounding",
       description: "Affirm your inner truth",
       assetPath: "assets/audio-tracks/What_You_Feel_is_Real.m4a",
       category: "Emotional Processing",
     ),
-    MeditationTrack(
-      title: "For When You're Numb and Don't Know Why",
-      subtitle: "5 min grounding",
-      description: "Sit with the fog",
-      assetPath: "assets/audio-tracks/For_When_Youre_Numb_and_Dont_Know_Why.m4a", // Sanitized path
-      category: "Emotional Processing",
-    ),
-    MeditationTrack(
-      title: "The Anger You've Been Swallowing",
-      subtitle: "5 min grounding",
-      description: "Let it surface safely",
-      assetPath: "assets/audio-tracks/The_Anger_Youve_Been_Swallowing.m4a", // Sanitized path
-      category: "Emotional Processing",
-    ),
+    // Temporarily commented out - file loading issues
+    // MeditationTrack(
+    //   title: "For When You're Numb and Don't Know Why",
+    //   duration: "5 min grounding",
+    //   description: "Sit with the fog",
+    //   assetPath: "assets/audio-tracks/For_When_Youre_Numb_and_Dont_Know_Why.m4a",
+    //   category: "Emotional Processing",
+    // ),
+    // Temporarily commented out - file loading issues
+    // MeditationTrack(
+    //   title: "The Anger You've Been Swallowing",
+    //   duration: "5 min grounding",
+    //   description: "Let it surface safely",
+    //   assetPath: "assets/audio-tracks/The_Anger_Youve_Been_Swallowing.m4a",
+    //   category: "Emotional Processing",
+    // ),
 
     // Grief & Loss
-    MeditationTrack(
-      title: "Grief That Doesn't Have a Name",
-      subtitle: "5 min grounding",
-      description: "Hold space for the unnamed",
-      assetPath: "assets/audio-tracks/Grief_That_Doesnt_Have_a_Name.m4a", // Sanitized path
-      category: "Grief & Loss",
-    ),
+    // Temporarily commented out - file loading issues
+    // MeditationTrack(
+    //   title: "Grief That Doesn't Have a Name",
+    //   duration: "5 min grounding",
+    //   description: "Hold space for the unnamed",
+    //   assetPath: "assets/audio-tracks/Grief_That_Doesnt_Have_a_Name.m4a",
+    //   category: "Grief & Loss",
+    // ),
     MeditationTrack(
       title: "When You Miss Who You Used to Be",
-      subtitle: "5 min grounding",
+      duration: "5 min grounding",
       description: "Grieve your old self gently",
       assetPath: "assets/audio-tracks/When_You_Miss_Who_You_Used_to_Be.m4a",
       category: "Grief & Loss",
@@ -160,8 +167,9 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
       // Set up duration stream listener
       devPrint("[DEBUG_LOG] Setting up duration stream listener");
       _player.durationStream.listen((duration) {
+        // Duration is available but not used in current minimal UI design
         if (mounted && duration != null) {
-          setState(() => _duration = duration);
+          // Could be used for future features like progress bar
         }
       });
 
@@ -245,17 +253,14 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
         // 2. Reset position state
         setState(() {
           _position = Duration.zero;
-          _duration = Duration.zero;
         });
 
         // 3. Load the new asset and seek to start
         devPrint("[DEBUG_LOG] Loading track: ${track.title} from ${track.assetPath}");
         try {
-          // Sanitize the asset path by replacing apostrophes with empty strings
-          // This is necessary because Flutter's asset loader has issues with apostrophes
+          // Sanitize the asset path by removing apostrophes - iOS has issues with apostrophes in file paths
           String sanitizedPath = track.assetPath.replaceAll("'", "");
           devPrint("[DEBUG_LOG] Sanitized asset path: $sanitizedPath");
-
           await _player.setAsset(sanitizedPath);
           devPrint("[DEBUG_LOG] Asset loaded successfully");
           await _player.seek(Duration.zero);
@@ -347,35 +352,25 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
         _playTrack(track);
       },
       child: Container(
-        padding: EdgeInsets.all(14),
-        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isPlaying ? Colors.pink[50] : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: isPlaying 
-            ? Border.all(color: Colors.pink[200]!, width: 1.5) 
-            : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.05),
-              spreadRadius: 1,
-              blurRadius: 2,
-              offset: const Offset(0, 1),
-            ),
-          ],
+          color: isPlaying ? AppColors.pink10 : Colors.transparent,
         ),
         child: Row(
           children: [
             Container(
               padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: isPlaying ? Colors.pink[300] : Colors.pink[100],
+                color: isPlaying ? AppColors.pink100 : AppColors.pink40,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                isPlaying ? Icons.music_note : Icons.spa, 
-                color: Colors.white, 
-                size: 20
+              child: HugeIcon(
+                icon: isPlaying 
+                  ? HugeIcons.strokeRoundedMusicNote01 
+                  : HugeIcons.strokeRoundedYoga02,
+                color: AppTokens.textPrimary,
+                size: 20,
+                strokeWidth: 1,
               ),
             ),
             SizedBox(width: 16),
@@ -385,35 +380,26 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
                 children: [
                   Text(
                     track.title, 
-                    style: TextStyle(
-                      fontSize: 15, 
-                      fontWeight: isPlaying ? FontWeight.bold : FontWeight.w600,
-                      color: isPlaying ? Colors.pink[700] : Colors.black,
-                    )
+                    style: isPlaying 
+                      ? AppTokens.textStyleMedium.copyWith(fontWeight: FontWeight.w600)
+                      : AppTokens.textStyleMedium,
                   ),
-                  SizedBox(height: 2),
                   Text(
-                    track.subtitle, 
-                    style: TextStyle(
-                      color: isPlaying ? Colors.pink[400] : Colors.grey.shade700,
-                      fontSize: 13,
-                    )
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    track.description, 
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 12,
-                    )
+                    track.duration, 
+                    style: AppTokens.textStyleSmall.copyWith(
+                      color: AppTokens.textSecondary,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_outline, 
-              color: isPlaying ? Colors.pink[400] : Colors.pink[200], 
-              size: 28
+            HugeIcon(
+              icon: isPlaying 
+                ? HugeIcons.strokeRoundedPause 
+                : HugeIcons.strokeRoundedPlay,
+              color: isPlaying ? AppColors.pink100 : AppColors.pink40,
+              size: 28,
+              strokeWidth: 1,
             ),
           ],
         ),
@@ -425,35 +411,18 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
     final categoryTracks = getTracksByCategory(category);
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.pink[50],
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      margin: EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 8),
+            padding: EdgeInsets.only(left: 16, bottom: 12),
             child: Text(
               category,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-              ),
+              style: AppTokens.textStyleLarge,
             ),
           ),
           ...categoryTracks.map((track) => _buildTrackCard(track)),
-          SizedBox(height: 8),
         ],
       ),
     );
@@ -473,77 +442,73 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
                           _errorMessage!.contains("Failed to play track");
 
       return Container(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        margin: EdgeInsets.all(20),
+        margin: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.red[50],
+          color: AppColors.pastelRed.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.red[200]!),
+          border: Border.all(
+            color: AppTokens.stateError,
+            width: 1,
+          ),
         ),
-        child: Column(
-          children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 32),
-            SizedBox(height: 8),
-            Text(
-              isTrackError ? "Track Playback Error" : "Audio Player Error",
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red[700]),
-            ),
-            SizedBox(height: 4),
-            Text(
-              _errorMessage!,
-              style: TextStyle(fontSize: 14, color: Colors.red[700]),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 8),
-            if (isTrackError && _nowPlaying != null)
-              Text(
-                "Track: ${_nowPlaying!.title}",
-                style: TextStyle(fontSize: 14, color: Colors.red[700], fontStyle: FontStyle.italic),
-                textAlign: TextAlign.center,
-              ),
-            SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _errorMessage = null;
-                    });
-                    if (isTrackError && _nowPlaying != null) {
-                      // Retry playing the current track
-                      _playTrack(_nowPlaying!);
-                    } else {
-                      // Reinitialize the player
-                      _initializePlayer();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[100],
-                    foregroundColor: Colors.red[700],
-                  ),
-                  child: Text("Retry"),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              // Error icon
+              IconButton(
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedAlert01,
+                  color: AppTokens.stateError,
+                  size: 32,
+                  strokeWidth: 1,
                 ),
-                if (isTrackError)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8.0),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _errorMessage = null;
-                          _nowPlaying = null;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                        foregroundColor: Colors.grey[700],
+                onPressed: null,
+              ),
+              // Error message
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isTrackError ? "Track Playback Error" : "Audio Player Error",
+                      style: AppTokens.textStyleMedium.copyWith(
+                        color: AppTokens.stateError,
                       ),
-                      child: Text("Dismiss"),
                     ),
+                    Text(
+                      _errorMessage!,
+                      style: AppTokens.textStyleSmall.copyWith(
+                        color: AppTokens.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              // Dismiss button
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _errorMessage = null;
+                    if (isTrackError) {
+                      _nowPlaying = null;
+                    }
+                  });
+                  if (!isTrackError) {
+                    _initializePlayer();
+                  }
+                },
+                child: Text(
+                  "Dismiss",
+                  style: AppTokens.textStyleSmall.copyWith(
+                    color: AppTokens.stateError,
                   ),
-              ],
-            ),
-          ],
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -554,18 +519,17 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
         padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         margin: EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.transparent,
         ),
         child: Column(
           children: [
             CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.pink[300]!),
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.pink100),
             ),
             SizedBox(height: 16),
             Text(
               "Loading audio...",
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: AppTokens.textStyleMedium,
             ),
           ],
         ),
@@ -577,101 +541,74 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
 
     // Normal player UI
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      margin: EdgeInsets.all(20),
+      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.pink10,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(
+          color: AppTokens.bgCard,
+          width: 1,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
         children: [
-          Text("Now Playing", style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 4),
-          Text(_nowPlaying!.title, style: TextStyle(fontSize: 16)),
-          SizedBox(height: 8),
-
-          // Elapsed / Total
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(_formatDuration(_position), style: TextStyle(fontSize: 12)),
-              Text(_formatDuration(_duration), style: TextStyle(fontSize: 12)),
-            ],
-          ),
-
-          // Draggable slider
-          Slider(
-            value: _position.inMilliseconds.clamp(0, _duration.inMilliseconds).toDouble(),
-            max: _duration.inMilliseconds.toDouble(),
-            min: 0,
-            activeColor: Colors.pink.shade300,
-            inactiveColor: Colors.pink.shade100,
-            onChanged: (value) {
+          // Play/Pause button
+          IconButton(
+            icon: HugeIcon(
+              icon: _isPlayerInitialized && _player.playing 
+                ? HugeIcons.strokeRoundedPause 
+                : HugeIcons.strokeRoundedPlay,
+              size: 32,
+              strokeWidth: 1,
+              color: AppColors.pink100,
+            ),
+            onPressed: () {
               if (_isPlayerInitialized) {
-                final newPos = Duration(milliseconds: value.toInt());
-                _player.seek(newPos);
+                _player.playing ? _player.pause() : _player.play();
               }
             },
           ),
-
-          SizedBox(height: 4),
-
-          // Prev / Play / Next controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: Icon(Icons.skip_previous, size: 32),
-                color: Colors.pink.shade300,
-                onPressed: () {
-                  if (_isPlayerInitialized && _nowPlaying != null) {
-                    final currentIndex = tracks.indexOf(_nowPlaying!);
-                    if (currentIndex > 0) {
-                      _playTrack(tracks[currentIndex - 1]);
-                    }
-                  }
-                },
-              ),
-              SizedBox(width: 16),
-              IconButton(
-                icon: Icon(
-                  _isPlayerInitialized && _player.playing 
-                    ? Icons.pause_circle_filled 
-                    : Icons.play_circle_filled,
-                  size: 48,
+          // Title and duration
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _nowPlaying!.title,
+                  style: AppTokens.textStyleMedium,
                 ),
-                color: Colors.pink.shade300,
-                onPressed: () {
-                  if (_isPlayerInitialized) {
-                    _player.playing ? _player.pause() : _player.play();
-                  }
-                },
-              ),
-              SizedBox(width: 16),
-              IconButton(
-                icon: Icon(Icons.skip_next, size: 32),
-                color: Colors.pink.shade300,
-                onPressed: () {
-                  if (_isPlayerInitialized && _nowPlaying != null) {
-                    final currentIndex = tracks.indexOf(_nowPlaying!);
-                    if (currentIndex < tracks.length - 1) {
-                      _playTrack(tracks[currentIndex + 1]);
-                    }
-                  }
-                },
-              ),
-            ],
+                SizedBox(height: 4),
+                Text(
+                  _formatDuration(_position),
+                  style: AppTokens.textStyleSmall.copyWith(
+                    color: AppTokens.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Close icon
+          IconButton(
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedCancel01,
+              size: 24,
+              strokeWidth: 1,
+              color: AppTokens.iconMuted,
+            ),
+            onPressed: () {
+              if (_isPlayerInitialized) {
+                _player.stop();
+              }
+              setState(() {
+                _nowPlaying = null;
+                _position = Duration.zero;
+              });
+            },
           ),
         ],
+        ),
       ),
     );
   }
@@ -684,18 +621,13 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
         children: [
           Text(
             'Find Your Peace',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
+            style: AppTokens.textStyleXLarge.copyWith(fontSize: 22),
           ),
           SizedBox(height: 8),
           Text(
             'Select a meditation track from the categories below to begin your mindfulness journey.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
+            style: AppTokens.textStyleSmall.copyWith(
+              color: AppTokens.textSecondary,
             ),
           ),
         ],
@@ -706,13 +638,19 @@ class GuidedMeditationScreenState extends State<GuidedMeditationScreen> with Wid
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTokens.bgPrimary,
       appBar: buildAppBar(
         'Guided Meditation',
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowLeft01,
+            size: 24,
+            strokeWidth: 1,
+            color: AppTokens.iconPrimary,
+          ),
           onPressed: () => context.go('/mindfulness'),
         ),
+        backgroundColor: AppTokens.bgPrimary,
       ),
       body: Column(
         children: [
