@@ -17,6 +17,7 @@ import 'package:pinkrain/features/treatment/services/medication_scheduler_servic
 import 'package:pinkrain/core/services/disclaimer_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io';
 
 
@@ -32,12 +33,24 @@ class ProfileScreenState extends State<ProfileScreen> {
   bool isFillUpPillboxEnabled = false;
   late TextEditingController _nameController;
   final _notificationService = MedicationNotificationService();
+  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
     _loadUserName();
+    _loadAppVersion();
+  }
+
+  // Load app version
+  Future<void> _loadAppVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = packageInfo.version;
+      });
+    }
   }
 
   @override
@@ -393,6 +406,18 @@ class ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+              if (_appVersion.isNotEmpty) ...[
+                SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'Version $_appVersion',
+                    style: AppTokens.textStyleSmall.copyWith(
+                      color: AppTokens.textSecondary,
+                      fontWeight: AppTokens.fontWeightNormal,
+                    ),
+                  ),
+                ),
+              ],
               SizedBox(height: 20),
             ],
               ),

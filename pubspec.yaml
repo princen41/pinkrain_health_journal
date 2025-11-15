@@ -2,7 +2,7 @@ name: pinkrain
 description: "Health Tracking App"
 publish_to: 'none'
 
-version: 2.3.1+1
+version: 2.3.2+1
 
 environment:
   sdk: '>=3.3.4 <4.0.0'
@@ -34,6 +34,7 @@ dependencies:
   timezone: ^0.10.1
   hugeicons: ^1.0.0
   hux: ^0.16.0
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:

@@ -38,9 +38,10 @@ Future<void> main() async {
     
     // CRITICAL FIX: Schedule notifications for today's medications on app startup
     // This ensures that if the app was killed or restarted, notifications are rescheduled
+    // The scheduling now covers the ENTIRE treatment duration, not just today
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    devPrint('🚀 App startup: Scheduling notifications for today\'s medications');
+    devPrint('🚀 App startup: Scheduling notifications for medications');
     devPrint('   Current time: ${now.toString()}');
     
     final journalLog = JournalLog();
@@ -52,8 +53,10 @@ Future<void> main() async {
     final untakenMeds = todayMeds.where((med) => !med.isTaken && !med.isSkipped).toList();
     devPrint('   Found ${untakenMeds.length} untaken/unskipped medications');
     
+    // CRITICAL: This now schedules for the entire treatment duration, ensuring notifications
+    // work indefinitely regardless of app usage
     await notificationService.showUntakenMedicationNotifications(untakenMeds);
-    devPrint('✅ App startup: Scheduled notifications for ${untakenMeds.length} medications');
+    devPrint('✅ App startup: Scheduled notifications (covering entire treatment duration)');
   } catch (e, stackTrace) {
     debugPrint('❌ Notification service initialization failed: $e\n$stackTrace');
     // Continue app startup even if notifications fail
