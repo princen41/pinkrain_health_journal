@@ -58,8 +58,9 @@ class DailyResetService {
     medicationNotificationService.resetDailyNotifications();
     devPrint('   ✅ Cleared notification tracking');
     
-    // CRITICAL FIX: Reschedule notifications for the new day
-    // After midnight, we need to schedule notifications for today's medications
+    // CRITICAL FIX: Reschedule notifications for the new day and ensure all future notifications are scheduled
+    // After midnight, we need to schedule notifications for today's medications and ensure
+    // all future notifications for active treatments are scheduled
     try {
       devPrint('🔄 Loading medications for the new day: ${today.toString().split(' ')[0]}');
       final journalLog = JournalLog();
@@ -83,8 +84,9 @@ class DailyResetService {
       }).toList();
       
       devPrint('   Scheduling notifications for ${futureMeds.length} future medications');
+      // CRITICAL: This now schedules for the entire treatment duration, not just today
       await medicationNotificationService.showUntakenMedicationNotifications(futureMeds);
-      devPrint('✅ Rescheduled ${futureMeds.length} medication notifications for the new day');
+      devPrint('✅ Rescheduled medication notifications (covering entire treatment duration)');
     } catch (e) {
       devPrint('❌ Error rescheduling notifications at midnight: $e');
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:pinkrain/core/services/hive_service.dart';
@@ -15,7 +16,6 @@ import 'package:pinkrain/features/wellness/presentation/wellness_notifier.dart';
 import 'package:pretty_animated_text/pretty_animated_text.dart';
 
 import '../../../core/theme/colors.dart';
-import '../../../core/theme/icons.dart';
 import '../../../core/theme/tokens.dart';
 import 'components/mood_trend_chart.dart';
 import 'components/scatter_plot_painter.dart';
@@ -199,7 +199,12 @@ class WellnessTrackerScreenState extends ConsumerState<WellnessTrackerScreen> {
                 shape: BoxShape.circle,
                 color: AppTokens.buttonElevatedBg,
               ),
-              child: appVectorImage(fileName: 'profile'), // Make sure this matches your icon
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedUser,
+                size: 24,
+                strokeWidth: 1,
+                color: AppTokens.iconPrimary,
+              ),
             ),
           ),
         ],

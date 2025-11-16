@@ -1850,6 +1850,13 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
 
   String _formatDuration(DateTime startDate, DateTime endDate) {
     final duration = endDate.difference(startDate).inDays + 1;
+    
+    // Check if it's an ongoing treatment (duration > 50 years indicates unlimited)
+    final durationYears = duration / 365.0;
+    if (durationYears > 50) {
+      return 'ongoing treatment';
+    }
+    
     if (duration == 1) {
       return '1 day';
     } else if (duration < 7) {
@@ -1900,7 +1907,16 @@ class JournalScreenState extends ConsumerState<JournalScreen> with WidgetsBindin
       daysStr = '${activeDays.length} days/week';
     }
 
-    return '$daysStr at $timeStr for $duration';
+    // Check if it's an ongoing treatment (duration > 50 years indicates unlimited)
+    final durationDays = medication.treatmentPlan.endDate.difference(medication.treatmentPlan.startDate).inDays + 1;
+    final durationYears = durationDays / 365.0;
+    final isOngoing = durationYears > 50;
+
+    if (isOngoing) {
+      return '$daysStr at $timeStr';
+    } else {
+      return '$daysStr at $timeStr for $duration';
+    }
   }
 
   Widget _buildInfoItem(String text) {
