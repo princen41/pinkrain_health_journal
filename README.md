@@ -15,6 +15,12 @@
 
 </div>
 
+<div align="center">
+  <img src="assets/screenshots/cover.png" alt="PinkRain Cover"/>
+  <br/><br/>
+  <img src="assets/screenshots/screens.png" alt="PinkRain App Screens"/>
+</div>
+
 ## About PinkRain
 
 PinkRain is a comprehensive mental health and wellness tracking application designed with privacy at its core. Unlike other health apps, **all your data remains securely stored on your device** and never leaves your phone. The app provides mood tracking, medication management, wellness analytics, breathing exercises, and guided meditation to support your mental wellness journey.
